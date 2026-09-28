@@ -1,36 +1,35 @@
 const { DataTypes } = require('sequelize');
-// models/Notificacion.js
 module.exports = (sequelize) => {
- const Notificacion = sequelize.define('Notificacion', {
+ const Notification = sequelize.define('Notification', {
   id: {
     type: DataTypes.UUID,
     defaultValue: DataTypes.UUIDV4,
     primaryKey: true,
   },
-  usuarioId: { // receptor de la notificación
+  userId: {
     type: DataTypes.UUID,
     allowNull: false,
   },
-  tipo: { // 'mensaje', 'solicitudFoto', etc.
+  type: {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  descripcion: { // texto corto o JSON con detalles
+  description: {
     type: DataTypes.TEXT,
     allowNull: true,
   },
-  leido: {
+  read: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
   },
-  relacionadaId: { // opcional, id del mensaje o solicitud asociada
+  relatedId: {
     type: DataTypes.STRING,
     allowNull: true,
   },
 }, {
   timestamps: true,
-  tableName: 'notificaciones',
+  tableName: 'Notifications',
 });
 
-  return Notificacion;
+  return Notification;
 };

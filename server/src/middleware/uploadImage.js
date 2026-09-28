@@ -17,7 +17,7 @@ module.exports = multer({
   },
   fileFilter: (_req, file, callback) => {
     if (!allowedTypes.has(file.mimetype)) {
-      return callback(Object.assign(new Error('Formato de imagen no permitido.'), { status: 415 }));
+      return callback(Object.assign(new Error('Unsupported image format.'), { status: 415 }));
     }
     return callback(null, true);
   },

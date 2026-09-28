@@ -1,4 +1,4 @@
-// routes/solicitudes.js
+
 const express = require('express');
 const router = express.Router();
 const {
@@ -6,29 +6,27 @@ const {
   LoginAdmin,
   RegisterFreeUser,
   UpdateAdminCreatedUserProfile,
-  AllUsers,
-  OneUser,
-  ActualizarEstadoUsuario,
-  Auth
+  GetAllUsers,
+  GetUserById,
+  UpdateUserStatus,
+  GetAdminProfile
 } = require('../controllers/Admin');
 const adminMiddleware = require("../middleware/adminMiddleware")
 const upload = require('../middleware/uploadImage');
 
-router.get('/admin/me', adminMiddleware, Auth);
-router.post('/register-admin', RegisterAdmin);
-router.post('/admin/users/free', RegisterFreeUser);
+router.get('/admin/me', adminMiddleware, GetAdminProfile);
+router.post('/admins/register', RegisterAdmin);
+router.post('/admins/login', LoginAdmin);
+router.post('/admin/users/free', adminMiddleware, RegisterFreeUser);
 router.patch(
   '/admin/users/:userId/profile',
-  upload.fields([{ name: 'fotos', maxCount: 9 }]),
+  adminMiddleware,
+  upload.fields([{ name: 'photos', maxCount: 9 }]),
   UpdateAdminCreatedUserProfile
 );
-
-router.post('/login-admin', LoginAdmin);
-router.get('/users', AllUsers);
-router.get('/user/:userId', OneUser);
-
-
-router.put('/users/:userId/estado', ActualizarEstadoUsuario);
+router.get('/admin/users', adminMiddleware, GetAllUsers);
+router.get('/admin/users/:userId', adminMiddleware, GetUserById);
+router.put('/admin/users/:userId/status', adminMiddleware, UpdateUserStatus);
 
 
 module.exports = router;

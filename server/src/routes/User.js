@@ -1,0 +1,45 @@
+const { Router } = require('express');
+const {
+  Register,
+  RegisterIOSRevenueCatSubscription,
+  Login,
+  GetCurrentUser,
+  createPaymentSession,
+  UpdateProfile,
+  GetProfile,
+  DeleteProfilePhoto,
+  DeleteAccount,
+  GetProfiles,
+  GetIOSCommunityProfiles,
+  LikeUser,
+  GetMyLikes,
+  DeleteLike,
+  ReportUser,
+  BlockUser,
+} = require('../controllers/User');
+const { SavePushToken } = require('../controllers/PushToken');
+const authenticateToken = require('../middleware/authenticateToken');
+const upload = require('../middleware/uploadImage');
+
+const router = Router();
+
+router.post('/register', Register);
+router.post('/subscriptions/revenuecat/register', RegisterIOSRevenueCatSubscription);
+router.post('/login', Login);
+router.post('/payments/session', createPaymentSession);
+
+router.get('/me', authenticateToken, GetCurrentUser);
+router.patch('/profile', authenticateToken, upload.fields([{ name: 'photos', maxCount: 10 }]), UpdateProfile);
+router.delete('/profile/photo', authenticateToken, DeleteProfilePhoto);
+router.delete('/account', authenticateToken, DeleteAccount);
+router.get('/profiles', authenticateToken, GetProfiles);
+router.get('/ios/community-members', authenticateToken, GetIOSCommunityProfiles);
+router.get('/profiles/:id', authenticateToken, GetProfile);
+router.post('/likes', authenticateToken, LikeUser);
+router.get('/likes', authenticateToken, GetMyLikes);
+router.delete('/likes/:id', authenticateToken, DeleteLike);
+router.post('/reports', authenticateToken, ReportUser);
+router.post('/blocks', authenticateToken, BlockUser);
+router.post('/push-tokens', authenticateToken, SavePushToken);
+
+module.exports = router;

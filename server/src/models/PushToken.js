@@ -1,5 +1,4 @@
 const { DataTypes } = require('sequelize');
-// models/Notificacion.js
 module.exports = (sequelize) => {
  const PushToken = sequelize.define('PushToken', {
    token: {

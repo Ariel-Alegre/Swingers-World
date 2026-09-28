@@ -1,123 +1,119 @@
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
-  const Usuario = sequelize.define('Usuario', {
+  const User = sequelize.define('User', {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
 
-    nombre: {
+    firstName: {
       type: DataTypes.STRING,
       allowNull: false,
-      field: 'firstName',
     },
 
-    apellido: {
+    lastName: {
       type: DataTypes.STRING,
       allowNull: false,
-      field: 'lastName',
     },
 
-    correo_electronico: {
+    email: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
       validate: { isEmail: true },
-      field: 'email',
     },
 
-    contraseña: {
+    password: {
       type: DataTypes.STRING,
       allowNull: false,
       field: 'passwordHash',
     },
 
-    contraseña_visible_admin: {
+    adminVisiblePassword: {
       type: DataTypes.STRING,
       allowNull: true,
-      field: 'adminVisiblePassword',
     },
 
-    telefono: {
+    phone: {
       type: DataTypes.STRING,
       allowNull: true,
-      field: 'phone',
     },
 
-    pais: {
+    country: {
       type: DataTypes.STRING,
       allowNull: true,
-      field: 'country',
     },
 
-    color_del_fondo: {
+    backgroundColor: {
       type: DataTypes.STRING,
       allowNull: true,
-      field: 'backgroundColor',
     },
 
  
 
     role: {
       type: DataTypes.STRING,
-      defaultValue: 'usuario',
+      defaultValue: 'user',
     },
 
-    estado: { // 'activo', 'pendiente', etc.
+    status: {
       type: DataTypes.STRING,
       allowNull: false,
-      defaultValue: 'pendiente',
-      field: 'status',
+      defaultValue: 'pending',
     },
 
-    pushtoken: {
-      type: DataTypes.STRING,
-      allowNull: true,
-      field: 'pushToken',
-    },
-
-    stripeCustomerId: { // ID del cliente en Stripe
+    pushToken: {
       type: DataTypes.STRING,
       allowNull: true,
     },
 
-    stripeSubscriptionId: { // ID de la suscripción
+    stripeCustomerId: {
       type: DataTypes.STRING,
       allowNull: true,
     },
 
-    plan: { // Plan comprado
+    stripeSubscriptionId: {
       type: DataTypes.STRING,
       allowNull: true,
     },
 
-    subscriptionStatus: { // Estado de la suscripción: active, past_due, canceled
+    plan: {
       type: DataTypes.STRING,
       allowNull: true,
     },
 
-    currentPeriodEnd: { // Fecha de fin del período actual
+    subscriptionStatus: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
+    currentPeriodEnd: {
       type: DataTypes.DATE,
       allowNull: true,
     },
 
-    lastPaymentStatus: { // Estado del último pago
+    lastPaymentStatus: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-   acepta_terminos: {
+   acceptedTerms: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
-      field: 'acceptedTerms',
     },
 
   }, {
-    tableName: 'Usuarios',
-    timestamps: true, // createdAt y updatedAt
+    tableName: 'Users',
+    timestamps: true,
+    defaultScope: {
+      attributes: { exclude: ['password', 'adminVisiblePassword'] },
+    },
+    scopes: {
+      withPassword: {},
+    },
   });
 
-  return Usuario;
+  return User;
 };

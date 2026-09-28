@@ -7,14 +7,14 @@ module.exports = (sequelize) => {
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
-  avatar_background: {
+  avatarBackground: {
       type: DataTypes.STRING,
       allowNull: false,
     },
 
     avatar: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
 
     },
 
@@ -23,7 +23,7 @@ module.exports = (sequelize) => {
       allowNull: false,
     },
 
-    last_name: {
+    lastName: {
       type: DataTypes.STRING,
       allowNull: false,
     
@@ -47,8 +47,14 @@ module.exports = (sequelize) => {
   
 
   }, {
-    tableName: 'user_admin',
-    timestamps: false, // createdAt y updatedAt
+    tableName: 'Admins',
+    timestamps: false,
+    defaultScope: {
+      attributes: { exclude: ['password'] },
+    },
+    scopes: {
+      withPassword: {},
+    },
   });
 
   return Admin;

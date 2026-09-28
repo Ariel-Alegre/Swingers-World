@@ -1,17 +1,12 @@
+const { Router } = require('express');
+const userRouter = require('./User');
+const messageRouter = require('./Message');
+const photoRequestRouter = require('./PhotoRequest');
+const adminRouter = require('./Admin');
+const mediaRouter = require('./Media');
 
-const { Router  }= require('express');
 const router = Router();
 
-const UsuarioRouter = require("./Usuario")
-const MessageRouter = require("./Message");
-const SolicitudesRouter = require("./Solicitudes");
-const AdminRouter = require("./Admin");
-const TestRouter = require("./Test");
-const MediaRouter = require('./Media');
+router.use('/api', mediaRouter, userRouter, messageRouter, photoRequestRouter, adminRouter);
 
-
-router.use('/api', MediaRouter, UsuarioRouter, MessageRouter, SolicitudesRouter, AdminRouter, TestRouter) 
-
-
-
-module.exports = router
+module.exports = router;

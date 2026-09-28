@@ -3,7 +3,7 @@ const { Client } = require('pg');
 
 async function main() {
   const database = process.env.DB_DATABASE?.trim();
-  if (!database) throw new Error('DB_DATABASE no está configurado.');
+  if (!database) throw new Error('DB_DATABASE is not configured.');
 
   const client = new Client({
     host: process.env.DB_HOST?.trim(),
@@ -17,13 +17,13 @@ async function main() {
   try {
     const found = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [database]);
     if (found.rowCount) {
-      console.log(`La base ya existe: ${database}`);
+      console.log(`Database already exists: ${database}`);
       return;
     }
 
     const safeDatabaseName = database.replace(/"/g, '""');
     await client.query(`CREATE DATABASE "${safeDatabaseName}"`);
-    console.log(`Base creada: ${database}`);
+    console.log(`Database created: ${database}`);
   } finally {
     await client.end();
   }

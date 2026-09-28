@@ -1,30 +1,31 @@
 const { DataTypes } = require('sequelize');
 
 
-// models/SolicitudFoto.js
 module.exports = (sequelize) => {
-  const SolicitudFoto = sequelize.define('SolicitudFoto', {
-    estado: {
-      type: DataTypes.ENUM('pendiente', 'aceptada', 'rechazada'),
-      defaultValue: 'pendiente',
+  const PhotoRequest = sequelize.define('PhotoRequest', {
+    status: {
+      type: DataTypes.ENUM('pending', 'accepted', 'rejected'),
+      defaultValue: 'pending',
     },
-      objetivoId: {
+      targetUserId: {
       type: DataTypes.UUID,
       allowNull: false,
     },
-      solicitanteId: {
+      requesterId: {
       type: DataTypes.UUID,
       allowNull: false,
     },
-    respondidaEn: {
+    respondedAt: {
       type: DataTypes.DATE,
       allowNull: true,
     },
-    permisoExpiraEn: {
+    permissionExpiresAt: {
       type: DataTypes.DATE,
       allowNull: true,
     },
+  }, {
+    tableName: 'PhotoRequests',
   });
 
-  return SolicitudFoto;
+  return PhotoRequest;
 };

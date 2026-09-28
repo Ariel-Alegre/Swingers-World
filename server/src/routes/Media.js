@@ -8,7 +8,7 @@ router.get('/media/:token', async (req, res, next) => {
     await streamMediaToken(req.params.token, res);
   } catch (error) {
     if (error?.name === 'TokenExpiredError' || error?.name === 'JsonWebTokenError') {
-      return res.status(401).json({ message: 'El enlace del archivo expiró o no es válido.' });
+      return res.status(401).json({ message: 'The file link has expired or is invalid.' });
     }
     return next(error);
   }

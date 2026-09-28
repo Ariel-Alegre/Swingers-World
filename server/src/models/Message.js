@@ -1,55 +1,46 @@
-// models/Message.js
+
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
   const Message = sequelize.define('Message', {
-    emisorId: {
+    senderId: {
       type: DataTypes.UUID,
       allowNull: false,
-      field: 'senderId',
     },
-    receptorId: {
+    receiverId: {
       type: DataTypes.UUID,
       allowNull: false,
-      field: 'receiverId',
     },
-    mensaje: {
+    content: {
       type: DataTypes.TEXT,
      allowNull: true,
-      field: 'content',
 
     },
-    imagenUrl: {
+    imageUrl: {
       type: DataTypes.STRING,
       allowNull: true,
-      field: 'imageUrl',
     },
-    soloUnaVez: {
+    viewOnce: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
-      field: 'viewOnce',
     },
 
-       tipo: {
+       type: {
       type: DataTypes.STRING,
-            defaultValue: 'texto',
-      field: 'type',
+            defaultValue: 'text',
 
     },
-    visto: {
+    viewed: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
-      field: 'viewed',
     },
-    leido: {
+    read: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
-      field: 'read',
     },
-    fecha: {
+    sentAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
-      field: 'sentAt',
     },
   });
 

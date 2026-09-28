@@ -11,7 +11,7 @@ function scheduleReceiptCheck(ticketIds) {
         const receipts = await expo.getPushNotificationReceiptsAsync(chunk);
         for (const [receiptId, receipt] of Object.entries(receipts)) {
           if (receipt.status === 'error') {
-            console.error('Expo rechazo una notificacion push:', {
+            console.error('Expo rejected a push notification:', {
               receiptId,
               message: receipt.message,
               details: receipt.details,
@@ -19,7 +19,7 @@ function scheduleReceiptCheck(ticketIds) {
           }
         }
       } catch (error) {
-        console.error('No se pudieron consultar los recibos push de Expo:', error);
+        console.error('Failed to retrieve Expo push receipts:', error);
       }
     }
   }, 15000);
@@ -38,14 +38,14 @@ async function sendExpoPushNotifications(messages) {
       tickets.push(...chunkTickets);
       chunkTickets.forEach((ticket) => {
         if (ticket.status === 'error') {
-          console.error('Expo no acepto una notificacion push:', {
+          console.error('Expo did not accept a push notification:', {
             message: ticket.message,
             details: ticket.details,
           });
         }
       });
     } catch (error) {
-      console.error('Error enviando notificaciones push a Expo:', error);
+      console.error('Failed to send push notifications through Expo:', error);
     }
   }
 

@@ -1,7 +1,7 @@
 require('dotenv').config();
 const bcrypt = require('bcrypt');
 const jwt = require('../utils/jwt');
-const { Usuario, Perfil, Admin} = require('../db');
+const { User, Profile, Admin} = require('../db');
 const { uploadFile, normalizeStorageReference } = require('../utils/objectStorage');
 
 function getRandomColor() {
@@ -13,15 +13,15 @@ function getRandomColor() {
   return color;
 }
 
-function getRegistrationSource(usuario) {
-  if (usuario.plan === 'gratis' && usuario.subscriptionStatus === 'free') {
+function getRegistrationSource(user) {
+  if (user.plan === 'free' && user.subscriptionStatus === 'free') {
     return 'admin';
   }
 
   return 'self';
 }
 
-function normalizeGeneroValue(value) {
+function normalizeGenderValue(value) {
   if (!value) return null;
 
   const normalized = String(value).trim().toLowerCase();
@@ -37,7 +37,7 @@ function normalizeGeneroValue(value) {
   return null;
 }
 
-function normalizeBuscoValue(value) {
+function normalizeLookingForValue(value) {
   if (!value) return null;
 
   const normalized = String(value).trim().toLowerCase();
@@ -59,44 +59,49 @@ function normalizeBuscoValue(value) {
 
 module.exports = {
  RegisterAdmin: async (req, res) => {
-    const { name, last_name, email, password } = req.body;
+    const { name, lastName, email, password } = req.body;
 
     try {
-      // 1. Validación de campos
-      if (!name || !last_name || !email || !password) {
-        return res
-          .status(400)
-          .json({ message: "Todos los campos obligatorios deben completarse." });
+      const registrationSecret = req.headers['x-admin-registration-secret'];
+      if (!process.env.ADMIN_REGISTRATION_SECRET || registrationSecret !== process.env.ADMIN_REGISTRATION_SECRET) {
+        return res.status(403).json({ message: 'Administrator registration is not authorized.' });
       }
 
-      // 2. Verificar email existente
+
+      if (!name || !lastName || !email || !password) {
+        return res
+          .status(400)
+          .json({ message: "All required fields must be completed." });
+      }
+
+
       const emailExists = await Admin.findOne({ where: { email } });
       if (emailExists) {
         return res
           .status(409)
-          .json({ message: "El correo ya está registrado." });
+          .json({ message: "The email address is already registered." });
       }
 
-      // 3. Hashear contraseña
+
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // 4. Crear admin
+
       const newAdmin = await Admin.create({
-        avatar_background: getRandomColor(),
-    
+        avatarBackground: getRandomColor(),
+
         name,
-        last_name,
+        lastName,
         email,
         password: hashedPassword,
         role: "admin",
       });
 
       return res.status(201).json({
-        message: "Administrador registrado correctamente.",
+        message: "Administrator registered successfully.",
         admin: {
           id: newAdmin.id,
           name: newAdmin.name,
-          last_name: newAdmin.last_name,
+          lastName: newAdmin.lastName,
           email: newAdmin.email,
           avatar: newAdmin.avatar,
         },
@@ -104,7 +109,7 @@ module.exports = {
     } catch (error) {
       console.error(error);
       return res.status(500).json({
-        message: "Ocurrió un error en el servidor.",
+        message: "An internal server error occurred.",
         error: error.message,
       });
     }
@@ -113,90 +118,96 @@ module.exports = {
     const { email, password } = req.body;
 
     try {
-      if (email !== 'admin@gmail.com' || password !== 'admin2025') {
-        console.log('Credenciales inválidas');
-        return res.status(400).json({ message: 'Credenciales inválidas' });
+      if (!email || !password) {
+        return res.status(400).json({ message: 'Email and password are required.' });
+      }
+
+      const admin = await Admin.scope('withPassword').findOne({ where: { email } });
+      const passwordIsValid = admin && await bcrypt.compare(password, admin.password);
+      if (!passwordIsValid) {
+        return res.status(401).json({ message: 'Invalid credentials.' });
       }
 
       const tokenPayload = {
-        id: 1,
-        name: 'Admin',
-        lastName: 'User',
-        email: 'admin@gmail.com',
-        role: 'admin',
+        id: admin.id,
+        name: admin.name,
+        lastName: admin.lastName,
+        email: admin.email,
+        role: admin.role,
       };
 
-      const token = jwt.sign(tokenPayload, process.env.JWT_SECRET,);
+      const token = jwt.sign(tokenPayload, process.env.JWT_SECRET);
 
-      console.log('✅ Inicio de sesión exitoso');
+      console.log('✅ Login successful');
       return res.json({
-        message: 'Inicio de sesión exitoso',
+        message: 'Login successful',
         token,
-        role: 'admin',
-      
+        role: admin.role,
+
       });
 
     } catch (error) {
-      console.error('⚠️ Error en Login:', error);
-      return res.status(500).json({ message: 'Error en el servidor' });
+      console.error('⚠️ Login error:', error);
+      return res.status(500).json({ message: 'Internal server error' });
     }
   },
 
   RegisterFreeUser: async (req, res) => {
     const {
-      nombre,
-      apellido,
-      correo_electronico,
-      contraseña,
-      telefono,
+      firstName,
+      lastName,
+      email,
+      password,
+      phone,
     } = req.body;
 
     try {
-      if (!nombre || !apellido || !correo_electronico || !contraseña) {
+      if (!firstName || !lastName || !email || !password) {
         return res.status(400).json({
-          message: 'Nombre, apellido, correo electrónico y contraseña son obligatorios.',
+          message: 'First name, last name, email, and password are required.',
         });
       }
 
-      const existingUser = await Usuario.findOne({ where: { correo_electronico } });
+      const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
-        return res.status(409).json({ message: 'El correo electrónico ya está registrado.' });
+        return res.status(409).json({ message: 'The email address is already registered.' });
       }
 
-      const hashedPassword = await bcrypt.hash(contraseña, 10);
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-      const usuario = await Usuario.create({
-        nombre,
-        apellido,
-        correo_electronico,
-        contraseña: hashedPassword,
-        contraseña_visible_admin: contraseña,
-        telefono: telefono || null,
-        color_del_fondo: getRandomColor(),
-        estado: 'activo',
-        plan: 'gratis',
+      const user = await User.create({
+        firstName,
+        lastName,
+        email,
+        password: hashedPassword,
+        phone: phone || null,
+        backgroundColor: getRandomColor(),
+        status: 'active',
+        plan: 'free',
         subscriptionStatus: 'free',
         lastPaymentStatus: 'free',
-        acepta_terminos: true,
+        acceptedTerms: true,
       });
 
-      const perfil = await Perfil.create({
-        usuarioId: usuario.id,
-        nombre_visible: `${nombre} ${apellido}`.trim(),
+      const profile = await Profile.create({
+        userId: user.id,
+        displayName: `${firstName} ${lastName}`.trim(),
       });
 
       return res.status(201).json({
-        message: 'Usuario gratis registrado correctamente.',
-        usuario: {
-          ...usuario.toJSON(),
+        message: 'Free user registered successfully.',
+        user: {
+          ...user.toJSON(),
+          password: undefined,
+          adminVisiblePassword: undefined,
           registrationSource: 'admin',
-          Perfil: perfil,
+          Profile: profile,
         },
       });
     } catch (error) {
-      console.error('⚠️ Error al registrar usuario gratis:', error);
+      console.error('⚠️ Free user registration error:', error);
       return res.status(500).json({
-        message: 'Error en el servidor',
+        message: 'Internal server error',
         error: error.message,
       });
     }
@@ -205,60 +216,60 @@ module.exports = {
   UpdateAdminCreatedUserProfile: async (req, res) => {
     const { userId } = req.params;
       const {
-        genero,
-        busco,
-      fecha_nacimiento,
-      direccion,
-      descripcion,
-      perfil_publico,
-      visibilidad_foto,
-      privacidad_activa,
-      verificado,
-      fotosExistentes,
+        gender,
+        lookingFor,
+      birthDate,
+      address,
+      description,
+      publicProfile,
+      photosVisible,
+      privacyEnabled,
+      verified,
+      existingPhotos: serializedExistingPhotos,
     } = req.body;
 
     try {
-      const usuario = await Usuario.findByPk(userId, {
+      const user = await User.findByPk(userId, {
         include: {
-          model: Perfil,
+          model: Profile,
         },
       });
 
-      if (!usuario) {
-        return res.status(404).json({ message: 'Usuario no encontrado.' });
+      if (!user) {
+        return res.status(404).json({ message: 'User not found.' });
       }
 
-      if (getRegistrationSource(usuario) !== 'admin') {
+      if (getRegistrationSource(user) !== 'admin') {
         return res.status(403).json({
-          message: 'Solo se puede editar desde este panel el perfil de usuarios creados por admin.',
+          message: 'Only profiles created by an administrator can be edited from this panel.',
         });
       }
 
-      const perfil = usuario.Perfil;
-      if (!perfil) {
-        return res.status(404).json({ message: 'Perfil no encontrado.' });
+      const profile = user.Profile;
+      if (!profile) {
+        return res.status(404).json({ message: 'Profile not found.' });
       }
 
-      const normalizedGenero = genero !== undefined ? normalizeGeneroValue(genero) : perfil.genero;
-      const normalizedBusco = busco !== undefined ? normalizeBuscoValue(busco) : perfil.busco;
+      const normalizedGender = gender !== undefined ? normalizeGenderValue(gender) : profile.gender;
+      const normalizedLookingFor = lookingFor !== undefined ? normalizeLookingForValue(lookingFor) : profile.lookingFor;
 
-      let existingPhotos = perfil.fotos || [];
-      if (fotosExistentes) {
+      let existingPhotos = profile.photos || [];
+      if (serializedExistingPhotos) {
         try {
-          const parsedPhotos = JSON.parse(fotosExistentes);
+          const parsedPhotos = JSON.parse(serializedExistingPhotos);
           if (Array.isArray(parsedPhotos)) {
             existingPhotos = parsedPhotos
               .filter((url) => typeof url === 'string' && url.trim())
               .map((url) => ({ url: normalizeStorageReference(url) }));
           }
         } catch (error) {
-          return res.status(400).json({ message: 'El formato de fotos existentes es inválido.' });
+          return res.status(400).json({ message: 'The existing photos format is invalid.' });
         }
       }
 
       let newPhotos = [];
-      if (req.files && req.files.fotos) {
-        const uploadPromises = req.files.fotos.map(async (file) => ({
+      if (req.files && req.files.photos) {
+        const uploadPromises = req.files.photos.map(async (file) => ({
           url: await uploadFile(file, 'profile-photos'),
         }));
 
@@ -267,157 +278,149 @@ module.exports = {
 
       const finalPhotos = [...existingPhotos, ...newPhotos].slice(0, 9);
 
-      await perfil.update({
-        genero: normalizedGenero,
-        busco: normalizedBusco,
-        fecha_nacimiento: fecha_nacimiento || null,
-        direccion: direccion || null,
-        descripcion: descripcion || null,
-        perfil_publico:
-          perfil_publico !== undefined
-            ? perfil_publico === true || perfil_publico === 'true'
-            : perfil.perfil_publico,
-        visibilidad_foto:
-          visibilidad_foto !== undefined
-            ? visibilidad_foto === true || visibilidad_foto === 'true'
-            : perfil.visibilidad_foto,
-        privacidad_activa:
-          privacidad_activa !== undefined
-            ? privacidad_activa === true || privacidad_activa === 'true'
-            : perfil.privacidad_activa,
-        verificado:
-          verificado !== undefined
-            ? verificado === true || verificado === 'true'
-            : perfil.verificado,
-        fotos: finalPhotos,
+      await profile.update({
+        gender: normalizedGender,
+        lookingFor: normalizedLookingFor,
+        birthDate: birthDate || null,
+        address: address || null,
+        description: description || null,
+        publicProfile:
+          publicProfile !== undefined
+            ? publicProfile === true || publicProfile === 'true'
+            : profile.publicProfile,
+        photosVisible:
+          photosVisible !== undefined
+            ? photosVisible === true || photosVisible === 'true'
+            : profile.photosVisible,
+        privacyEnabled:
+          privacyEnabled !== undefined
+            ? privacyEnabled === true || privacyEnabled === 'true'
+            : profile.privacyEnabled,
+        verified:
+          verified !== undefined
+            ? verified === true || verified === 'true'
+            : profile.verified,
+        photos: finalPhotos,
       });
 
-      const updatedUser = await Usuario.findByPk(userId, {
+      const updatedUser = await User.findByPk(userId, {
         include: {
-          model: Perfil,
+          model: Profile,
         },
       });
 
       return res.status(200).json({
-        message: 'Perfil actualizado correctamente.',
-        usuario: {
+        message: 'Profile updated successfully.',
+        user: {
           ...updatedUser.toJSON(),
           registrationSource: 'admin',
         },
       });
     } catch (error) {
-      console.error('⚠️ Error al actualizar perfil desde admin:', error);
+      console.error('⚠️ Administrator profile update error:', error);
       return res.status(500).json({
-        message: 'Error en el servidor',
+        message: 'Internal server error',
         error: error.message,
       });
     }
   },
 
 
-    AllUsers: async (req, res) => {
+    GetAllUsers: async (req, res) => {
 
     try {
-       const user = await Usuario.findAll({
+       const user = await User.findAll({
         include:{
-          model: Perfil
+          model: Profile
         }
        });
 
        if(!user) {
-        console.log("no hay usuarios registrados")
-        res.status(401).send({message: "no hay usuarios registrados"})
+        console.log("No registered users were found")
+        res.status(401).send({message: "No registered users were found"})
        }
 
-        const usersWithSource = user.map((usuario) => ({
-          ...usuario.toJSON(),
-          registrationSource: getRegistrationSource(usuario),
+        const usersWithSource = user.map((user) => ({
+          ...user.toJSON(),
+          registrationSource: getRegistrationSource(user),
         }));
 
         res.status(200).send(usersWithSource)
 
     } catch (error) {
-      console.error('⚠️ Error al obtener los usuarios registrados:', error);
-      return res.status(500).json({ message: 'Error en el servidor' });
+      console.error('⚠️ Failed to retrieve registered users:', error);
+      return res.status(500).json({ message: 'Internal server error' });
     }
   },
 
 
-    OneUser: async (req, res) => {
+    GetUserById: async (req, res) => {
       const {userId} = req.params
 
     try {
-       const user = await Usuario.findByPk(userId, {
+       const user = await User.findByPk(userId, {
               include:[{
-          model: Perfil
+          model: Profile
         },
      ]
        });
 
        if(!user) {
-        console.log("Usuarion no encontrado")
-        res.status(401).send({message: "Usuarion no encontrado"})
+        console.log("User not found")
+        res.status(401).send({message: "User not found"})
        }
 
 
  return res.status(200).json(user);
 
     } catch (error) {
-      console.error('⚠️ Error al obtener el usuario:', error);
-      return res.status(500).json({ message: 'Error en el servidor' });
+      console.error('⚠️ Failed to retrieve user:', error);
+      return res.status(500).json({ message: 'Internal server error' });
     }
   },
 
 
-ActualizarEstadoUsuario: async (req, res) => {
+UpdateUserStatus: async (req, res) => {
   const { userId } = req.params;
 
   try {
-    const usuario = await Usuario.findByPk(userId);
+    const user = await User.findByPk(userId);
 
-    if (!usuario) {
-      console.log("Usuario no encontrado");
-      return res.status(404).json({ message: "Usuario no encontrado" });
+    if (!user) {
+      console.log("User not found");
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // Alterna el estado entre "activo" y "pendiente"
-    let nuevoEstado;
-    if (usuario.estado === "activo") {
-      nuevoEstado = "pendiente";
+
+    let newStatus;
+    if (user.status === "active") {
+      newStatus = "pending";
     } else {
-      nuevoEstado = "activo";
+      newStatus = "active";
     }
 
-    // Actualiza en la base de datos
-    usuario.estado = nuevoEstado;
-    await usuario.save();
 
-    console.log(`Estado actualizado a ${nuevoEstado}`);
-    return res.status(200).json({ message: "Estado actualizado", estado: nuevoEstado });
+    user.status = newStatus;
+    await user.save();
+
+    console.log(`Status updated to ${newStatus}`);
+    return res.status(200).json({ message: 'Status updated', status: newStatus });
 
   } catch (error) {
-    console.error("⚠️ Error al actualizar el estado del usuario:", error);
-    return res.status(500).json({ message: "Error en el servidor" });
+    console.error("⚠️ Failed to update user status:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 },
 
 
-Auth :async (req, res) => {
+GetAdminProfile :async (req, res) => {
   try {
-    const user = await UserAdmin.findByPk(req.user.id, {
-      attributes: { exclude: ["password"] }
-    });
-
-    if (!user) {
-      return res.status(404).json({ message: "Usuario no encontrado" });
-    }
-
-    res.json(user);
+    res.json(req.admin);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Error en servidor" });
+    res.status(500).json({ message: 'Internal server error' });
   }
 }
 
-   
+
 };

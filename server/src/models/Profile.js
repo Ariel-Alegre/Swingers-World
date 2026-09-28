@@ -1,106 +1,91 @@
 const { DataTypes } = require('sequelize');
 
 module.exports = (sequelize) => {
-  const Perfil = sequelize.define('Perfil', {
+  const Profile = sequelize.define('Profile', {
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true,
     },
 
-    usuarioId: {
+    userId: {
       type: DataTypes.UUID,
       allowNull: false,
       unique: true,
-      field: 'userId',
     },
 
-    nombre_visible: {
+    displayName: {
       type: DataTypes.STRING,
       allowNull: true,
-      defaultValue: 'Usuario VIP',
-      field: 'displayName',
+      defaultValue: 'VIP Member',
     },
-  genero: {
+  gender: {
        type: DataTypes.STRING,
 
       allowNull: true,
-      field: 'gender',
     },
 
-      busco: {
+      lookingFor: {
        type: DataTypes.STRING,
 
       allowNull: true,
-      field: 'lookingFor',
     },
-    fecha_nacimiento : {
+    birthDate : {
       type: DataTypes.STRING,
       allowNull: true,
-      field: 'birthDate',
     },
 
-    direccion: {
+    address: {
       type: DataTypes.STRING,
       allowNull: true,
-      field: 'address',
     },
-latitud: {
+latitude: {
   type: DataTypes.FLOAT,
   allowNull: true,
-  field: 'latitude',
 },
-longitud: {
+longitude: {
   type: DataTypes.FLOAT,
   allowNull: true,
-  field: 'longitude',
 },
-radio: {
+radius: {
   type: DataTypes.FLOAT,
   allowNull: false,
   defaultValue: 5,
-  field: 'radius',
 },
-    descripcion: {
+    description: {
       type: DataTypes.STRING(1000),
       allowNull: true,
-      defaultValue: 'Privada. Solo comparto detalles si me interesa tu perfil.',
-      field: 'description',
+      defaultValue: 'Private. I only share details when I am interested in a profile.',
     },
 
-    fotos: {
+    photos: {
       type: DataTypes.ARRAY(DataTypes.JSON),
       allowNull: true,
-      field: 'photos',
     },
 
-    visibilidad_foto: {
+    photosVisible: {
             type: DataTypes.BOOLEAN,
         defaultValue: false,
-        field: 'photosVisible',
 
     },
- perfil_publico: {
+ publicProfile: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
-      field: 'publicProfile',
     },
-    privacidad_activa: {
+    privacyEnabled: {
       type: DataTypes.BOOLEAN,
       defaultValue: true,
-      field: 'privacyEnabled',
     },
 
-     verificado: {
+     verified: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,
-    field: 'verified',
   }
 
   }, {
-    tableName: 'Perfiles',
+    tableName: 'Profiles',
     timestamps: true,
   });
 
-  return Perfil;
+  return Profile;
 };

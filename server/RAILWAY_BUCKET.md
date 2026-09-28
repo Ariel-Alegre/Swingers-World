@@ -1,11 +1,11 @@
 # Railway Bucket
 
-El servidor utiliza un Railway Storage Bucket privado mediante la API compatible con S3.
+The server uses a private Railway Storage Bucket through its S3-compatible API.
 
-## Configuración en Railway
+## Railway configuration
 
-1. Crear un Bucket en el mismo proyecto y ambiente que la API.
-2. Abrir el servicio de la API y agregar referencias a las variables del Bucket:
+1. Create a Bucket in the same Railway project and environment as the API.
+2. Open the API service and add references to the Bucket variables:
 
    ```env
    BUCKET=${{Bucket.BUCKET}}
@@ -16,25 +16,30 @@ El servidor utiliza un Railway Storage Bucket privado mediante la API compatible
    AWS_S3_URL_STYLE=virtual
    ```
 
-   Reemplazar `Bucket` por el nombre real del servicio en Railway.
+   Replace `Bucket` with the actual Railway service name.
 
-3. Configurar la URL pública y un secreto independiente para enlaces de archivos:
+3. Configure the public API URL and an independent secret for file links:
 
    ```env
    PUBLIC_API_URL=https://${{RAILWAY_PUBLIC_DOMAIN}}
-   MEDIA_URL_SECRET=un-secreto-largo-y-aleatorio
+   MEDIA_URL_SECRET=a-long-random-secret
+   ADMIN_REGISTRATION_SECRET=another-long-random-secret
    ```
 
-4. Volver a desplegar la API.
+4. Redeploy the API.
 
-## Funcionamiento
+The administrator registration endpoint requires the `x-admin-registration-secret` header to match `ADMIN_REGISTRATION_SECRET`.
 
-- Las nuevas imágenes se guardan como referencias internas `railway://...`.
-- El bucket permanece privado.
-- Las respuestas JSON convierten esas referencias en enlaces firmados que expiran en 15 minutos.
-- `/api/media/:token` valida la firma antes de transmitir el archivo desde el bucket.
-- Las URLs antiguas de Cloudinary continúan mostrándose, pero las nuevas cargas ya no utilizan Cloudinary.
+If Railway already contains the legacy Spanish schema, run `npm run db:migrate:english` once before starting the new server version.
 
-## Desarrollo local
+## How it works
 
-Copiar `.env.example` como `.env` y completar las credenciales del ambiente de desarrollo. No usar las credenciales del bucket de producción durante desarrollo.
+- New images are stored as internal `railway://...` references.
+- The bucket remains private.
+- JSON responses convert those references into signed links that expire after 15 minutes.
+- `/api/media/:token` validates the signature before streaming the file from the bucket.
+- Existing Cloudinary URLs remain readable, but new uploads no longer use Cloudinary.
+
+## Local development
+
+Copy `.env.example` to `.env` and provide development credentials. Do not use production bucket credentials during local development.

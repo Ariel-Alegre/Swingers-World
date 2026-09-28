@@ -6,14 +6,14 @@ const {
 } = require('../src/utils/objectStorage');
 
 describe('JWT HS256', () => {
-  it('firma y verifica tokens compatibles', () => {
-    const token = jwt.sign({ id: 'user-1', role: 'usuario' }, 'test-secret', { expiresIn: '15m' });
-    expect(jwt.verify(token, 'test-secret')).to.include({ id: 'user-1', role: 'usuario' });
+  it('signs and verifies compatible tokens', () => {
+    const token = jwt.sign({ id: 'user-1', role: 'user' }, 'test-secret', { expiresIn: '15m' });
+    expect(jwt.verify(token, 'test-secret')).to.include({ id: 'user-1', role: 'user' });
   });
 
-  it('rechaza firmas modificadas', () => {
+  it('rejects modified signatures', () => {
     const token = jwt.sign({ id: 'user-1' }, 'test-secret', { expiresIn: '15m' });
-    expect(() => jwt.verify(`${token.slice(0, -1)}x`, 'test-secret')).to.throw('Firma inválida');
+    expect(() => jwt.verify(`${token.slice(0, -1)}x`, 'test-secret')).to.throw('Invalid signature.');
   });
 });
 
@@ -22,7 +22,7 @@ describe('Railway Bucket media references', () => {
     process.env.MEDIA_URL_SECRET = 'media-test-secret';
   });
 
-  it('materializa referencias internas y puede recuperarlas', () => {
+  it('materializes internal references and can restore them', () => {
     const reference = 'railway://profile-photos/example.jpg';
     const result = materializeMediaReferences(
       { profile: { photos: [{ url: reference }] } },
@@ -33,7 +33,7 @@ describe('Railway Bucket media references', () => {
     expect(normalizeStorageReference(result.profile.photos[0].url)).to.equal(reference);
   });
 
-  it('deja intactas las URLs heredadas', () => {
+  it('keeps legacy URLs unchanged', () => {
     const legacy = 'https://legacy.example.com/photo.jpg';
     expect(materializeMediaReferences({ url: legacy }, 'https://api.example.com').url).to.equal(legacy);
   });

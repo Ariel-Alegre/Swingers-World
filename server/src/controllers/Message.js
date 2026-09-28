@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { Op, Sequelize } = require('sequelize');
-const { Message, Usuario, Perfil } = require('../db');
+const { Message, User, Profile } = require('../db');
 const { getIO } = require('../controllers/socket');
 const { Expo } = require('expo-server-sdk');
 const { sendExpoPushNotifications } = require('../utils/pushNotifications');
@@ -14,96 +14,96 @@ const {
   getRequestBaseUrl,
 } = require('../utils/objectStorage');
 
-const obtenerMensajes = async (req, res) => {
+const getMessages = async (req, res) => {
   try {
-    const { emisorId, receptorId, before } = req.query;
+    const { senderId, receiverId, before } = req.query;
 
-    if (await areUsersBlocked(emisorId, receptorId)) {
+    if (await areUsersBlocked(senderId, receiverId)) {
       return res.json([]);
     }
 
     const whereClause = {
       [Op.or]: [
-        { emisorId, receptorId },
-        { emisorId: receptorId, receptorId: emisorId },
+        { senderId, receiverId },
+        { senderId: receiverId, receiverId: senderId },
       ],
     };
 
     if (before) {
-      whereClause.fecha = { [Op.lt]: new Date(before) };
+      whereClause.sentAt = { [Op.lt]: new Date(before) };
     }
 
-    const mensajes = await Message.findAll({
+    const messages = await Message.findAll({
       where: whereClause,
-      order: [['fecha', 'DESC']],
+      order: [['sentAt', 'DESC']],
       limit: 50,
     });
 
-    res.json(mensajes);
+    res.json(messages);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Error obteniendo mensajes' });
+    res.status(500).json({ message: 'Failed to retrieve messages' });
   }
 };
 
-// Este crearMensaje recibe req.file.buffer si es subida de imagen
 
 
-const crearMensaje = async (req, res) => {
-  const { emisorId, receptorId, mensaje, } = req.body;
+
+const createMessage = async (req, res) => {
+  const { senderId, receiverId, content, } = req.body;
 
 
-  let imagenUrl = null;
+  let imageUrl = null;
 
   try {
     if (req.file && req.file.buffer) {
-      imagenUrl = await uploadFile(req.file, 'chat-images');
-    } else if (req.body.imagenUrl) {
-      imagenUrl = normalizeStorageReference(req.body.imagenUrl);
+      imageUrl = await uploadFile(req.file, 'chat-images');
+    } else if (req.body.imageUrl) {
+      imageUrl = normalizeStorageReference(req.body.imageUrl);
     }
 
-    if (!emisorId || !receptorId) {
-      return res.status(400).json({ error: 'Faltan emisorId o receptorId' });
+    if (!senderId || !receiverId) {
+      return res.status(400).json({ error: 'senderId and receiverId are required' });
     }
 
-    if (await areUsersBlocked(emisorId, receptorId)) {
-      return res.status(403).json({ error: 'No puedes enviar mensajes a este usuario.' });
+    if (await areUsersBlocked(senderId, receiverId)) {
+      return res.status(403).json({ error: 'You cannot send messages to this user.' });
     }
 
-    const objectionableMatch = findObjectionableMatch(mensaje);
+    const objectionableMatch = findObjectionableMatch(content);
     if (objectionableMatch) {
-      return res.status(400).json({ error: 'El mensaje contiene contenido no permitido.' });
+      return res.status(400).json({ error: 'The message contains prohibited content.' });
     }
 
-    const nuevoMensaje = await Message.create({
-      emisorId,
-      receptorId,
-      mensaje: mensaje || null,
-      imagenUrl: imagenUrl || null,
-      tipo: imagenUrl ? 'imagen' : 'texto',
-      soloUnaVez: 'true',
-      visto: false,
-      leido: false,
-      fecha: new Date(),
+    const newMessage = await Message.create({
+      senderId,
+      receiverId,
+      content: content || null,
+      imageUrl: imageUrl || null,
+      type: imageUrl ? 'image' : 'text',
+      viewOnce: true,
+      viewed: false,
+      read: false,
+      sentAt: new Date(),
     });
 
-    // Emitir por socket
+
     const io = getIO();
-    const roomId = [emisorId, receptorId].sort().join('-');
+    const roomId = [senderId, receiverId].sort().join('-');
     io.to(roomId).emit(
       'receiveMessage',
-      materializeMediaReferences(nuevoMensaje, getRequestBaseUrl(req)),
+      materializeMediaReferences(newMessage, getRequestBaseUrl(req)),
     );
 
-    const mensajesNoLeidos = await Message.count({
-      where: { receptorId, leido: false },
+    const unreadMessages = await Message.count({
+      where: { receiverId, read: false },
     });
-    io.to(receptorId.toString()).emit('mensajesNoLeidos', { cantidad: mensajesNoLeidos });
+    io.to(receiverId.toString()).emit('unreadMessages', { count: unreadMessages });
 
-    // 📩 Buscar token del receptor
-    const receptor = await Usuario.findByPk(receptorId);
-    const emisor = await Usuario.findByPk(emisorId);
-    const capitalizar = (str) => {
+
+    const receiver = await User.findByPk(receiverId);
+    const sender = await User.findByPk(senderId);
+    const capitalize = (str) => {
       if (!str) return '';
       return str
         .split(' ')
@@ -113,259 +113,259 @@ const crearMensaje = async (req, res) => {
 
 
 
-    // Ejemplo con tu emisor
-    const nombreCompleto = capitalizar(`${emisor.nombre} ${emisor.apellido}`);
-    if (receptor && receptor.pushtoken && Expo.isExpoPushToken(receptor.pushtoken)) {
+
+    const fullName = capitalize(`${sender.firstName} ${sender.lastName}`);
+    if (receiver && receiver.pushToken && Expo.isExpoPushToken(receiver.pushToken)) {
 
       const messages = [{
-        to: receptor.pushtoken,
+        to: receiver.pushToken,
         sound: 'default',
-        title: nombreCompleto,
-        body: mensaje?.slice(0, 50) || 'Nuevo mensaje', // opcional: preview del mensaje
+        title: fullName,
+        body: content?.slice(0, 50) || 'New message',
         data: {
           screen: 'ChatDetail',
-          params: { tipo: 'mensaje', receptorId: emisorId }
+          params: { type: 'message', senderId }
         }
         ,
-        badge: mensajesNoLeidos
+        badge: unreadMessages
       }];
 
       await sendExpoPushNotifications(messages);
     }
 
-    res.status(201).json(nuevoMensaje);
+    res.status(201).json(newMessage);
   } catch (error) {
-    console.error('❌ Error al crear mensaje:', error);
-    res.status(500).json({ error: 'Error al crear mensaje' });
+    console.error('❌ Failed to create message:', error);
+    res.status(500).json({ error: 'Failed to create message' });
   }
 };
 
 
 
 
-const obtenerConversaciones = async (req, res) => {
+const getConversations = async (req, res) => {
   const { userId } = req.query;
-  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
 
   try {
     const blockedUserIds = await getBlockedUserIdsForUser(userId);
 
-    const mensajes = await Message.findAll({
+    const messages = await Message.findAll({
       where: {
         [Op.and]: [
-          { [Op.or]: [{ emisorId: userId }, { receptorId: userId }] },
+          { [Op.or]: [{ senderId: userId }, { receiverId: userId }] },
           {
-            emisorId: { [Op.notIn]: blockedUserIds },
+            senderId: { [Op.notIn]: blockedUserIds },
           },
           {
-            receptorId: { [Op.notIn]: blockedUserIds },
+            receiverId: { [Op.notIn]: blockedUserIds },
           },
         ],
       },
       attributes: [
         'id',
-        'mensaje',
-        'fecha',
-        'emisorId',
-        'receptorId',
-        'leido',
+        'content',
+        'sentAt',
+        'senderId',
+        'receiverId',
+        'read',
         [
           Sequelize.literal(
-            `CASE WHEN "emisorId" = '${userId}' THEN "receptorId" ELSE "emisorId" END`
+            `CASE WHEN "senderId" = '${userId}' THEN "receiverId" ELSE "senderId" END`
           ),
-          'interlocutorId',
+          'participantId',
         ],
       ],
-      order: [['fecha', 'DESC']],
+      order: [['sentAt', 'DESC']],
     });
 
-    const conversacionesMap = new Map();
+    const conversationMap = new Map();
 
-    for (const m of mensajes) {
-      const interlocutorId = m.get('interlocutorId');
-      if (!conversacionesMap.has(interlocutorId)) {
-        conversacionesMap.set(interlocutorId, m);
+    for (const m of messages) {
+      const participantId = m.get('participantId');
+      if (!conversationMap.has(participantId)) {
+        conversationMap.set(participantId, m);
       }
     }
 
-    const interlocutoresIds = Array.from(conversacionesMap.keys());
+    const participantIds = Array.from(conversationMap.keys());
 
-    const interlocutores = await Usuario.findAll({
+    const participants = await User.findAll({
       where: {
-        id: interlocutoresIds.filter((id) => !blockedUserIds.includes(id)),
+        id: participantIds.filter((id) => !blockedUserIds.includes(id)),
       },
-      include: [{ model: Perfil }],
+      include: [{ model: Profile }],
     });
 
-    const resultado = interlocutores.map((user) => {
-      const mensaje = conversacionesMap.get(user.id);
+    const result = participants.map((user) => {
+      const content = conversationMap.get(user.id);
       return {
-        interlocutorId: user.id,
-        nombre: user.nombre,
-        apellido: user.apellido,
-        avatar: user.Perfil?.fotos?.[0]?.url ?? null,
-        ultimoMensaje: mensaje.mensaje,
-        fechaUltimoMensaje: mensaje.fecha,
-        ultimoMensajeDeOtro: mensaje.emisorId !== userId,
-        leido: mensaje.emisorId !== userId && mensaje.leido === true,
+        participantId: user.id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        avatar: user.Profile?.photos?.[0]?.url ?? null,
+        lastMessage: content.content,
+        lastMessageAt: content.sentAt,
+        isIncoming: content.senderId !== userId,
+        read: content.senderId !== userId && content.read === true,
       };
     });
 
-    res.json(resultado);
+    res.json(result);
   } catch (error) {
-    console.error('❌ Error al obtener conversaciones:', error);
-    res.status(500).json({ error: 'Error al obtener conversaciones' });
+    console.error('❌ Failed to retrieve conversations:', error);
+    res.status(500).json({ error: 'Failed to retrieve conversations' });
   }
 };
 
-const marcarComoLeido = async (req, res) => {
+const markAsRead = async (req, res) => {
   try {
-    const { emisorId, receptorId, tipo, messageId } = req.body;
+    const { senderId, receiverId, type, messageId } = req.body;
 
-    if (tipo === 'texto') {
-      // Marcar TODOS los mensajes tipo texto de emisor a receptor como leídos
+    if (type === 'text') {
+
       await Message.update(
-        { leido: true },
+        { read: true },
         {
           where: {
-            emisorId,
-            receptorId,
-            leido: false,
-            tipo: 'texto',
+            senderId,
+            receiverId,
+            read: false,
+            type: 'text',
           },
         }
       );
-    } else if (tipo === 'imagen' && messageId) {
-      // Marcar solo el mensaje específico tipo imagen como leído
-      const mensaje = await Message.findByPk(messageId);
-      if (!mensaje) {
-        return res.status(404).json({ error: 'Mensaje no encontrado' });
+    } else if (type === 'image' && messageId) {
+
+      const content = await Message.findByPk(messageId);
+      if (!content) {
+        return res.status(404).json({ error: 'Message not found' });
       }
-      if (!mensaje.leido) {
-        mensaje.leido = true;
-        await mensaje.save();
+      if (!content.read) {
+        content.read = true;
+        await content.save();
       }
     } else {
-      return res.status(400).json({ error: 'Parámetros incorrectos o faltantes' });
+      return res.status(400).json({ error: 'Invalid or missing parameters' });
     }
 
 
 
-    const cantidad = await Message.count({
-      where: { receptorId, leido: false },
+    const count = await Message.count({
+      where: { receiverId, read: false },
     });
-    getIO().to(receptorId.toString()).emit('mensajesNoLeidos', { cantidad });
+    getIO().to(receiverId.toString()).emit('unreadMessages', { count });
 
     res.status(200).json({ success: true });
   } catch (error) {
-    console.error('Error marcando como leídos:', error);
-    res.status(500).json({ error: 'Error marcando como leídos' });
+    console.error('Failed to mark messages as read:', error);
+    res.status(500).json({ error: 'Failed to mark messages as read' });
   }
 };
 
-const obtenerNotificaciones = async (req, res) => {
+const getUnreadMessageCounts = async (req, res) => {
   const { userId } = req.query;
-  if (!userId) return res.status(400).json({ error: 'Falta userId' });
+  if (!userId) return res.status(400).json({ error: 'userId is required' });
 
   try {
-    const mensajesNoLeidos = await Message.findAll({
+    const unreadMessages = await Message.findAll({
       where: {
-        receptorId: userId,
-        leido: false,
+        receiverId: userId,
+        read: false,
       },
       attributes: [
-        'emisorId',
-        [Sequelize.fn('COUNT', Sequelize.col('id')), 'cantidad']
+        'senderId',
+        [Sequelize.fn('COUNT', Sequelize.col('id')), 'count']
       ],
-      group: ['emisorId'],
-      raw: true, // Opcional: para obtener objetos planos
+      group: [Sequelize.col('senderId')],
+      raw: true,
     });
 
-    res.json(mensajesNoLeidos);
+    res.json(unreadMessages);
   } catch (error) {
-    console.error('❌ Error al obtener notificaciones:', error);
-    res.status(500).json({ error: 'Error al obtener notificaciones' });
+    console.error('❌ Failed to retrieve notifications:', error);
+    res.status(500).json({ error: 'Failed to retrieve notifications' });
   }
 };
 
 
-// Cuando el receptor vea la imagen, la marcamos vista y la eliminamos si es de tipo soloUnaVez
-const marcarImagenComoVista = async (req, res) => {
+
+const markImageAsViewed = async (req, res) => {
   const { messageId } = req.body;
 
   try {
-    const mensaje = await Message.findByPk(messageId);
+    const content = await Message.findByPk(messageId);
 
-    if (!mensaje) {
-      return res.status(404).json({ error: 'Mensaje no encontrado' });
+    if (!content) {
+      return res.status(404).json({ error: 'Message not found' });
     }
 
-    if (mensaje.soloUnaVez) {
-      // Marcamos como visto
-      mensaje.visto = true;
-      await mensaje.save();
+    if (content.viewOnce) {
 
-      // Eliminamos la imagen del bucket si tiene imagenUrl
-      if (mensaje.imagenUrl) {
+      content.viewed = true;
+      await content.save();
+
+
+      if (content.imageUrl) {
         try {
-          await deleteStoredObject(mensaje.imagenUrl);
+          await deleteStoredObject(content.imageUrl);
         } catch (err) {
-          console.warn('No se pudo eliminar la imagen del bucket:', err);
+          console.warn('Failed to delete the image from the bucket:', err);
         }
       }
 
-      // Eliminamos el mensaje de la DB
-      await mensaje.destroy();
 
-      // Emitir evento para actualizar en cliente
+      await content.destroy();
+
+
       const io = getIO();
-      const roomId = [mensaje.emisorId, mensaje.receptorId].sort().join('-');
+      const roomId = [content.senderId, content.receiverId].sort().join('-');
       io.to(roomId).emit('messageDeleted', { messageId });
 
-      return res.json({ success: true, message: 'Mensaje eliminado tras ver imagen' });
+      return res.json({ success: true, message: 'Message deleted after the image was viewed' });
     }
 
-    res.status(400).json({ error: 'El mensaje no es de tipo soloUnaVez' });
+    res.status(400).json({ error: 'The message is not configured for one-time viewing' });
   } catch (error) {
-    console.error('❌ Error al marcar imagen como vista y eliminar:', error);
-    res.status(500).json({ error: 'Error al procesar imagen' });
+    console.error('❌ Failed to mark the image as viewed and delete it:', error);
+    res.status(500).json({ error: 'Failed to process image' });
   }
 };
 
-const eliminarMensaje = async (req, res) => {
-  const { mensajeId } = req.body;
+const deleteMessage = async (req, res) => {
+  const { messageId } = req.body;
 
   try {
-    const mensaje = await Message.findByPk(mensajeId);
-    if (!mensaje) return res.status(404).json({ error: 'Mensaje no encontrado' });
+    const content = await Message.findByPk(messageId);
+    if (!content) return res.status(404).json({ error: 'Message not found' });
 
-    if (mensaje.soloUnaVez) {
-      // Si querés eliminar imagen también aquí
-      if (mensaje.imagenUrl) {
+    if (content.viewOnce) {
+
+      if (content.imageUrl) {
         try {
-          await deleteStoredObject(mensaje.imagenUrl);
+          await deleteStoredObject(content.imageUrl);
         } catch (err) {
-          console.warn('No se pudo eliminar la imagen del bucket:', err);
+          console.warn('Failed to delete the image from the bucket:', err);
         }
       }
 
-      await mensaje.destroy();
+      await content.destroy();
       res.json({ success: true });
     } else {
-      res.status(400).json({ error: 'El mensaje no es de tipo soloUnaVez' });
+      res.status(400).json({ error: 'The message is not configured for one-time viewing' });
     }
   } catch (error) {
-    console.error('❌ Error al eliminar mensaje:', error);
-    res.status(500).json({ error: 'Error al eliminar mensaje' });
+    console.error('❌ Failed to delete message:', error);
+    res.status(500).json({ error: 'Failed to delete message' });
   }
 };
 
 module.exports = {
-  crearMensaje,
-  obtenerMensajes,
-  obtenerConversaciones,
-  marcarComoLeido,
-  obtenerNotificaciones,
-  marcarImagenComoVista,
-  eliminarMensaje,
+  createMessage,
+  getMessages,
+  getConversations,
+  markAsRead,
+  getUnreadMessageCounts,
+  markImageAsViewed,
+  deleteMessage,
 };

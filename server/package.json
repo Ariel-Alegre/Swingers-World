@@ -4,15 +4,17 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "nodemon -L",
+    "start": "node index.js",
+    "dev": "nodemon -L",
     "db:create": "node scripts/createDatabase.js",
+    "db:migrate:english": "node scripts/migrateSchemaToEnglish.js",
     "test": "mocha ./tests/**/*.spec.js"
   },
   "author": "ELARITECH",
   "license": "ISC",
   "engines": {
-    "node": ">=12.18.3",
-    "npm": ">=6.14.6"
+    "node": "22.x",
+    "npm": ">=10"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1142.0",

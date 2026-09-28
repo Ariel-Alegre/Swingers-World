@@ -24,7 +24,7 @@ function getConfig() {
     .map(([key]) => key);
 
   if (missing.length) {
-    throw new Error(`Falta configurar Railway Bucket: ${missing.join(', ')}`);
+    throw new Error(`Missing Railway Bucket configuration: ${missing.join(', ')}`);
   }
 
   return config;
@@ -72,7 +72,7 @@ function keyFromReference(value) {
 
 function mediaSecret() {
   const secret = process.env.MEDIA_URL_SECRET || process.env.JWT_SECRET;
-  if (!secret) throw new Error('Falta MEDIA_URL_SECRET o JWT_SECRET para firmar archivos.');
+  if (!secret) throw new Error('MEDIA_URL_SECRET or JWT_SECRET is required to sign files.');
   return secret;
 }
 
@@ -124,8 +124,8 @@ function normalizeStorageReference(value) {
 }
 
 async function uploadFile(file, folder) {
-  if (!file?.buffer?.length) throw new Error('El archivo está vacío.');
-  if (!String(file.mimetype || '').startsWith('image/')) throw new Error('Sólo se permiten imágenes.');
+  if (!file?.buffer?.length) throw new Error('The file is empty.');
+  if (!String(file.mimetype || '').startsWith('image/')) throw new Error('Only images are allowed.');
   const config = getConfig();
   const safeFolder = String(folder || 'uploads').replace(/[^a-zA-Z0-9/_-]/g, '');
   const key = `${safeFolder}/${randomUUID()}${extensionFor(file)}`;
@@ -151,7 +151,7 @@ async function deleteStoredObject(reference) {
 
 async function streamMediaToken(token, res) {
   const decoded = jwt.verify(token, mediaSecret(), { audience: 'media' });
-  if (!decoded?.key) throw Object.assign(new Error('Enlace de archivo inválido.'), { status: 401 });
+  if (!decoded?.key) throw Object.assign(new Error('Invalid file link.'), { status: 401 });
   const config = getConfig();
   const object = await getClient().send(new GetObjectCommand({ Bucket: config.bucket, Key: decoded.key }));
 
