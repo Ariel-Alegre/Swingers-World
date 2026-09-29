@@ -279,7 +279,7 @@ const markAsRead = async (req, res) => {
 };
 
 const getUnreadMessageCounts = async (req, res) => {
-  const { userId } = req.query;
+  const userId = req.userId;
   if (!userId) return res.status(400).json({ error: 'userId is required' });
 
   try {
