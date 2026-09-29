@@ -158,7 +158,6 @@ module.exports = {
       lastName,
       email,
       password,
-      phone,
     } = req.body;
 
     try {
@@ -180,7 +179,6 @@ module.exports = {
         lastName,
         email,
         password: hashedPassword,
-        phone: phone || null,
         backgroundColor: getRandomColor(),
         status: 'active',
         plan: 'free',
@@ -219,6 +217,7 @@ module.exports = {
         displayName,
         profileType,
         partnerFirstName,
+        partnerLastName,
         coupleType,
         gender,
         lookingFor,
@@ -259,6 +258,7 @@ module.exports = {
       const finalProfileType = profileType !== undefined ? String(profileType).trim() : profile.profileType;
       const finalDisplayName = displayName !== undefined ? String(displayName).trim() : profile.displayName;
       const finalPartnerFirstName = partnerFirstName !== undefined ? String(partnerFirstName).trim() : profile.partnerFirstName;
+      const finalPartnerLastName = partnerLastName !== undefined ? String(partnerLastName).trim() : profile.partnerLastName;
       const finalCoupleType = coupleType !== undefined ? String(coupleType).trim() : profile.coupleType;
 
       if (!['single', 'couple'].includes(finalProfileType)) {
@@ -267,8 +267,8 @@ module.exports = {
       if (!finalDisplayName) {
         return res.status(400).json({ message: 'A display name is required.' });
       }
-      if (finalProfileType === 'couple' && (!finalPartnerFirstName || !['woman_man', 'two_women', 'two_men', 'other'].includes(finalCoupleType))) {
-        return res.status(400).json({ message: 'Partner name and couple composition are required.' });
+      if (finalProfileType === 'couple' && (!finalPartnerFirstName || !finalPartnerLastName || !['woman_man', 'two_women', 'two_men', 'other'].includes(finalCoupleType))) {
+        return res.status(400).json({ message: 'Partner first name, last name, and couple composition are required.' });
       }
 
       let existingPhotos = profile.photos || [];
@@ -300,6 +300,7 @@ module.exports = {
         displayName: finalDisplayName,
         profileType: finalProfileType,
         partnerFirstName: finalProfileType === 'couple' ? finalPartnerFirstName : null,
+        partnerLastName: finalProfileType === 'couple' ? finalPartnerLastName : null,
         coupleType: finalProfileType === 'couple' ? finalCoupleType : null,
         gender: finalProfileType === 'single' ? normalizedGender : null,
         lookingFor: normalizedLookingFor,

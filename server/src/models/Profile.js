@@ -29,6 +29,10 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
+    partnerLastName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     coupleType: {
       type: DataTypes.STRING,
       allowNull: true,

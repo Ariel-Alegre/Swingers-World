@@ -196,7 +196,7 @@ module.exports = {
 
 createPaymentSession: async (req, res) => {
   try {
-    const { firstName, lastName, email, password, phone, country, plan, isWeb } = req.body;
+    const { firstName, lastName, email, password, country, plan, isWeb } = req.body;
 
     
     if (!planPriceIds[plan]) {
@@ -213,7 +213,7 @@ createPaymentSession: async (req, res) => {
     
     const customer = await stripe.customers.create({
       email: email,
-      metadata: { firstName, lastName, email, password, phone, country, plan },
+      metadata: { firstName, lastName, email, password, country, plan },
     });
     const customerId = customer.id;
 
@@ -282,7 +282,7 @@ webhookStripe: async (req, res) => {
       const invoice = event.data.object;
       const customer = await stripe.customers.retrieve(invoice.customer);
       const metadata = customer.metadata || {};
-      const { firstName, lastName, email, phone, country, password, plan } = metadata;
+      const { firstName, lastName, email, country, password, plan } = metadata;
 
       
       let user = await User.findOne({ where: { email } });
@@ -296,7 +296,6 @@ webhookStripe: async (req, res) => {
           lastName,
           email,
           password: hashedPassword,
-          phone,
           country,
           backgroundColor: getRandomColor(),
           status: "active",
@@ -500,31 +499,31 @@ webhookRevenueCat: async (req, res) => {
   Register: async (req, res) => {
     try {
       const {
-        firstName, lastName, email, password, phone, country,
-        profileType = 'single', gender, partnerFirstName, coupleType, acceptedTerms,
+        firstName, lastName, email, password, country,
+        profileType = 'single', gender, partnerFirstName, partnerLastName, coupleType, acceptedTerms,
       } = req.body;
 
-      if (!firstName || !lastName || !email || !password || !phone) {
-        return res.status(400).json({ message: 'All required registration fields must be completed.' });
+      if (!firstName || !lastName || !email || !password) {
+        return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'All required registration fields must be completed.' });
       }
       if (!VALID_PROFILE_TYPES.includes(profileType)) {
-        return res.status(400).json({ message: 'The profile type is invalid.' });
+        return res.status(400).json({ code: 'INVALID_PROFILE_TYPE', message: 'The profile type is invalid.' });
       }
       if (!(acceptedTerms === true || acceptedTerms === 'true')) {
-        return res.status(400).json({ message: 'The terms and adult-age confirmation must be accepted.' });
+        return res.status(400).json({ code: 'TERMS_REQUIRED', message: 'The terms and adult-age confirmation must be accepted.' });
       }
 
       const normalizedGender = profileType === 'single' ? normalizeGenderValue(gender) : null;
       if (profileType === 'single' && !normalizedGender) {
-        return res.status(400).json({ message: 'Gender is required for an individual profile.' });
+        return res.status(400).json({ code: 'PROFILE_DETAILS_REQUIRED', message: 'Gender is required for an individual profile.' });
       }
-      if (profileType === 'couple' && (!partnerFirstName?.trim() || !VALID_COUPLE_TYPES.includes(coupleType))) {
-        return res.status(400).json({ message: 'Partner name and couple composition are required.' });
+      if (profileType === 'couple' && (!partnerFirstName?.trim() || !partnerLastName?.trim() || !VALID_COUPLE_TYPES.includes(coupleType))) {
+        return res.status(400).json({ code: 'PROFILE_DETAILS_REQUIRED', message: 'Partner first name, last name, and couple composition are required.' });
       }
 
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
-        return res.status(400).json({ message: 'A user with that email address already exists.' });
+        return res.status(409).json({ code: 'EMAIL_ALREADY_REGISTERED', message: 'A user with that email address already exists.' });
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -534,7 +533,6 @@ webhookRevenueCat: async (req, res) => {
         lastName,
         email,
         password: hashedPassword,
-        phone,
         country,
         role: 'user',
         backgroundColor: getRandomColor(),
@@ -545,11 +543,12 @@ webhookRevenueCat: async (req, res) => {
       const profile = await Profile.create({
         userId: newUser.id,
         displayName: profileType === 'couple'
-          ? `${firstName.trim()} & ${partnerFirstName.trim()}`
+          ? `${firstName.trim()} ${lastName.trim().charAt(0)}. & ${partnerFirstName.trim()} ${partnerLastName.trim().charAt(0)}.`
           : `${firstName.trim()} ${lastName.trim().charAt(0)}.`,
         profileType,
         gender: normalizedGender,
         partnerFirstName: profileType === 'couple' ? partnerFirstName.trim() : null,
+        partnerLastName: profileType === 'couple' ? partnerLastName.trim() : null,
         coupleType: profileType === 'couple' ? coupleType : null,
         description: null,
         photosVisible: true,
@@ -636,7 +635,6 @@ webhookRevenueCat: async (req, res) => {
         lastName,
         email,
         password,
-        phone,
         country,
         plan,
         acceptedTerms,
@@ -664,7 +662,6 @@ webhookRevenueCat: async (req, res) => {
           lastName,
           email,
           password: hashedPassword,
-          phone,
           country,
           role: 'user',
           backgroundColor: getRandomColor(),
@@ -679,7 +676,6 @@ webhookRevenueCat: async (req, res) => {
         const updatedFields = {
           firstName,
           lastName,
-          phone,
           country,
           status: 'active',
           plan,
@@ -719,16 +715,16 @@ webhookRevenueCat: async (req, res) => {
 
       const user = await User.scope('withPassword').findOne({ where: { email } });
       if (!user) {
-        return res.status(404).json({ message: 'User not found.' });
+        return res.status(401).json({ code: 'INVALID_CREDENTIALS', message: 'The email address or password is incorrect.' });
       }
 
       if (!user.password) {
-        return res.status(500).json({ message: 'The user password is invalid or missing.' });
+        return res.status(401).json({ code: 'INVALID_CREDENTIALS', message: 'The email address or password is incorrect.' });
       }
 
       const match = await bcrypt.compare(password, user.password);
       if (!match) {
-        return res.status(401).json({ message: 'Incorrect password.' });
+        return res.status(401).json({ code: 'INVALID_CREDENTIALS', message: 'The email address or password is incorrect.' });
       }
 
       const token = jwt.sign(
@@ -821,7 +817,7 @@ UpdateProfile: async (req, res) => {
       description, address, birthDate, gender, lookingFor, country,
       publicProfile, photosVisible, latitude, longitude, radius,
       city, region, countryCode, timezone, locationSource, locationTrackingEnabled,
-      displayName, partnerFirstName, coupleType
+      displayName, partnerFirstName, partnerLastName, coupleType
     } = req.body;
 
     const objectionableDescriptionMatch = findObjectionableMatch(description);
@@ -836,6 +832,7 @@ UpdateProfile: async (req, res) => {
     const normalizedLookingFor = lookingFor !== undefined ? normalizeLookingForValue(lookingFor) : user.Profile.lookingFor;
     const finalDisplayName = displayName !== undefined ? String(displayName).trim() : user.Profile.displayName;
     const finalPartnerFirstName = partnerFirstName !== undefined ? String(partnerFirstName).trim() : user.Profile.partnerFirstName;
+    const finalPartnerLastName = partnerLastName !== undefined ? String(partnerLastName).trim() : user.Profile.partnerLastName;
     const finalCoupleType = coupleType !== undefined ? String(coupleType).trim() : user.Profile.coupleType;
 
     if (!finalDisplayName) {
@@ -844,8 +841,8 @@ UpdateProfile: async (req, res) => {
     if (user.Profile.profileType === 'single' && !normalizedGender) {
       return res.status(400).json({ message: 'Gender is required for an individual profile.' });
     }
-    if (user.Profile.profileType === 'couple' && (!finalPartnerFirstName || !VALID_COUPLE_TYPES.includes(finalCoupleType))) {
-      return res.status(400).json({ message: 'Partner name and couple composition are required.' });
+    if (user.Profile.profileType === 'couple' && (!finalPartnerFirstName || !finalPartnerLastName || !VALID_COUPLE_TYPES.includes(finalCoupleType))) {
+      return res.status(400).json({ message: 'Partner first name, last name, and couple composition are required.' });
     }
 
     
@@ -887,6 +884,7 @@ UpdateProfile: async (req, res) => {
         address,
         displayName: finalDisplayName,
         partnerFirstName: user.Profile.profileType === 'couple' ? finalPartnerFirstName : null,
+        partnerLastName: user.Profile.profileType === 'couple' ? finalPartnerLastName : null,
         coupleType: user.Profile.profileType === 'couple' ? finalCoupleType : null,
         city: city !== undefined ? String(city).trim() || null : user.Profile.city,
         region: region !== undefined ? String(region).trim() || null : user.Profile.region,
@@ -1119,7 +1117,7 @@ UpdateProfile: async (req, res) => {
         const hasPhotos = Array.isArray(profile?.photos) && profile.photos.length > 0;
         const hasValidDescription = profile?.description?.trim().length > 0;
         const hasValidProfileDetails = profile?.profileType === 'couple'
-          ? Boolean(profile.partnerFirstName?.trim() && VALID_COUPLE_TYPES.includes(profile.coupleType))
+          ? Boolean(profile.partnerFirstName?.trim() && profile.partnerLastName?.trim() && VALID_COUPLE_TYPES.includes(profile.coupleType))
           : Boolean(normalizeGenderValue(profile?.gender));
 
         return (
@@ -1172,7 +1170,7 @@ UpdateProfile: async (req, res) => {
           const hasPhotos = Array.isArray(profile?.photos) && profile.photos.length > 0;
           const hasValidDescription = Boolean(profile?.description?.trim());
           const hasValidProfileDetails = profile?.profileType === 'couple'
-            ? Boolean(profile.partnerFirstName?.trim() && VALID_COUPLE_TYPES.includes(profile.coupleType))
+            ? Boolean(profile.partnerFirstName?.trim() && profile.partnerLastName?.trim() && VALID_COUPLE_TYPES.includes(profile.coupleType))
             : Boolean(normalizeGenderValue(profile?.gender));
           return entry.acceptedTerms === true && hasPhotos && hasValidDescription && hasValidProfileDetails;
         })
@@ -1185,6 +1183,7 @@ UpdateProfile: async (req, res) => {
             displayName: entry.Profile?.displayName,
             profileType: entry.Profile?.profileType,
             partnerFirstName: entry.Profile?.partnerFirstName,
+            partnerLastName: entry.Profile?.partnerLastName,
             coupleType: entry.Profile?.coupleType,
             photos: entry.Profile?.photos || [],
             photosVisible: entry.Profile?.photosVisible,

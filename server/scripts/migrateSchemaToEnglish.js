@@ -169,6 +169,7 @@ async function addLocationColumns(transaction) {
     ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "locationTrackingEnabled" BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "profileType" VARCHAR(255) NOT NULL DEFAULT 'single';
     ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "partnerFirstName" VARCHAR(255);
+    ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "partnerLastName" VARCHAR(255);
     ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "coupleType" VARCHAR(255);
   `, { transaction });
 }
