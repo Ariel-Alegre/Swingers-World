@@ -38,6 +38,14 @@ module.exports = (sequelize) => {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
+    deliveredAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    readAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
     sentAt: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,

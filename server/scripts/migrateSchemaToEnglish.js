@@ -176,6 +176,14 @@ async function addLocationColumns(transaction) {
   `, { transaction });
 }
 
+async function addMessageStatusColumns(transaction) {
+  if (!await tableExists('Messages', transaction)) return;
+  await conn.query(`
+    ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "deliveredAt" TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "readAt" TIMESTAMP WITH TIME ZONE;
+  `, { transaction });
+}
+
 async function main() {
   await conn.authenticate();
   await conn.transaction(async (transaction) => {
@@ -184,6 +192,7 @@ async function main() {
     await migratePhotoRequestEnum(transaction);
     await migrateStoredValues(transaction);
     await addLocationColumns(transaction);
+    await addMessageStatusColumns(transaction);
   });
   console.log('English schema migration completed successfully.');
 }

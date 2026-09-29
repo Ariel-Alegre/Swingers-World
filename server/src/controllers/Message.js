@@ -18,6 +18,10 @@ const getMessages = async (req, res) => {
   try {
     const { senderId, receiverId, before } = req.query;
 
+    if (req.userId !== senderId && req.userId !== receiverId) {
+      return res.status(403).json({ message: 'You cannot access this conversation' });
+    }
+
     if (await areUsersBlocked(senderId, receiverId)) {
       return res.json([]);
     }
@@ -50,7 +54,8 @@ const getMessages = async (req, res) => {
 
 
 const createMessage = async (req, res) => {
-  const { senderId, receiverId, content, } = req.body;
+  const senderId = req.userId;
+  const { receiverId, content } = req.body;
 
 
   let imageUrl = null;
@@ -90,6 +95,16 @@ const createMessage = async (req, res) => {
 
     const io = getIO();
     const roomId = [senderId, receiverId].sort().join('-');
+    const receiverSockets = await io.in(receiverId.toString()).fetchSockets();
+    if (receiverSockets.length) {
+      newMessage.deliveredAt = new Date();
+      await newMessage.save();
+      io.to(senderId.toString()).emit('messagesDelivered', {
+        receiverId,
+        messageIds: [newMessage.id],
+        deliveredAt: newMessage.deliveredAt.toISOString(),
+      });
+    }
     io.to(roomId).emit(
       'receiveMessage',
       materializeMediaReferences(newMessage, getRequestBaseUrl(req)),
@@ -146,6 +161,7 @@ const createMessage = async (req, res) => {
 const getConversations = async (req, res) => {
   const { userId } = req.query;
   if (!userId) return res.status(400).json({ error: 'userId is required' });
+  if (req.userId !== userId) return res.status(403).json({ error: 'You cannot access these conversations' });
 
   try {
     const blockedUserIds = await getBlockedUserIdsForUser(userId);
@@ -220,33 +236,27 @@ const getConversations = async (req, res) => {
 
 const markAsRead = async (req, res) => {
   try {
-    const { senderId, receiverId, type, messageId } = req.body;
+    const { senderId } = req.body;
+    const receiverId = req.userId;
+    if (!senderId) return res.status(400).json({ error: 'senderId is required' });
 
-    if (type === 'text') {
+    const unreadMessages = await Message.findAll({
+      where: { senderId, receiverId, read: false },
+      attributes: ['id'],
+    });
+    const messageIds = unreadMessages.map((message) => message.id);
+    const readAt = new Date();
 
+    if (messageIds.length) {
       await Message.update(
-        { read: true },
-        {
-          where: {
-            senderId,
-            receiverId,
-            read: false,
-            type: 'text',
-          },
-        }
+        { read: true, readAt, deliveredAt: readAt },
+        { where: { id: { [Op.in]: messageIds } } },
       );
-    } else if (type === 'image' && messageId) {
-
-      const content = await Message.findByPk(messageId);
-      if (!content) {
-        return res.status(404).json({ error: 'Message not found' });
-      }
-      if (!content.read) {
-        content.read = true;
-        await content.save();
-      }
-    } else {
-      return res.status(400).json({ error: 'Invalid or missing parameters' });
+      getIO().to(senderId.toString()).emit('messagesRead', {
+        readerId: receiverId,
+        messageIds,
+        readAt: readAt.toISOString(),
+      });
     }
 
 

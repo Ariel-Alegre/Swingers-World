@@ -23,6 +23,7 @@ const RequestPhotoAccess = async (req, res) => {
     const existingRequest = await PhotoRequest.findOne({
       where: { requesterId, targetUserId }
     });
+    let photoRequest;
 
     if (existingRequest) {
       if (existingRequest.status === 'pending') {
@@ -38,14 +39,16 @@ const RequestPhotoAccess = async (req, res) => {
       existingRequest.respondedAt = null;
       existingRequest.permissionExpiresAt = null;
       await existingRequest.save();
+      photoRequest = existingRequest;
     } else {
-      await PhotoRequest.create({ requesterId, targetUserId });
+      photoRequest = await PhotoRequest.create({ requesterId, targetUserId });
     }
 
     await Notification.create({
       userId: targetUserId,
       type: 'photo_request',
       description: 'Someone wants to view your private photos',
+      relatedId: photoRequest.id,
     });
 
     try {
@@ -179,8 +182,9 @@ function capitalize(text) {
 
       await Notification.create({
         userId: photoRequest.requesterId,
-        type: "photo_response",
+        type: "photo_request_rejected",
         description: notificationBody,
+        relatedId: targetUser.id,
       });
 
       if (requester?.pushToken && Expo.isExpoPushToken(requester.pushToken)) {
@@ -228,8 +232,9 @@ function capitalize(text) {
 
     await Notification.create({
       userId: photoRequest.requesterId,
-      type: "photo_response",
+      type: decision === 'accepted' ? 'photo_request_accepted' : 'photo_request_pending',
       description: notificationBody,
+      relatedId: targetUser.id,
     });
 
     if (requester?.pushToken && Expo.isExpoPushToken(requester.pushToken)) {

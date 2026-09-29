@@ -1,5 +1,7 @@
 
 const { Message, User, PhotoRequest } = require('../db');
+const { Op } = require('sequelize');
+const jwt = require('../utils/jwt');
 const { Expo } = require('expo-server-sdk');
 const { sendExpoPushNotifications } = require('../utils/pushNotifications');
 const { areUsersBlocked } = require('../utils/blocks');
@@ -16,6 +18,42 @@ function initSocket(server) {
       credentials: true,
     },
   });
+
+  io.use((socket, next) => {
+    try {
+      const token = socket.handshake.auth?.token;
+      if (!token) return next(new Error('Authentication required'));
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      socket.userId = decoded.id;
+      return next();
+    } catch (error) {
+      return next(new Error('Invalid authentication token'));
+    }
+  });
+
+  async function markPendingMessagesDelivered(userId) {
+    const pendingMessages = await Message.findAll({
+      where: { receiverId: userId, deliveredAt: null },
+      attributes: ['id', 'senderId'],
+    });
+    if (!pendingMessages.length) return;
+
+    const deliveredAt = new Date();
+    const messageIds = pendingMessages.map((message) => message.id);
+    await Message.update({ deliveredAt }, { where: { id: { [Op.in]: messageIds } } });
+
+    const senderIds = [...new Set(pendingMessages.map((message) => message.senderId))];
+    for (const senderId of senderIds) {
+      const senderMessageIds = pendingMessages
+        .filter((message) => message.senderId === senderId)
+        .map((message) => message.id);
+      io.to(senderId.toString()).emit('messagesDelivered', {
+        receiverId: userId,
+        messageIds: senderMessageIds,
+        deliveredAt: deliveredAt.toISOString(),
+      });
+    }
+  }
 
 
   async function sendUnreadMessages(userId) {
@@ -34,10 +72,16 @@ function initSocket(server) {
   }
 
   io.on('connection', (socket) => {
+    socket.join(socket.userId.toString());
+    void sendUnreadMessages(socket.userId);
+    void markPendingMessagesDelivered(socket.userId).catch((error) => {
+      console.error('Failed to mark messages as delivered:', error);
+    });
     console.log('✅ User connected:', socket.id);
 
 
     socket.on('setUserId', async (userId) => {
+      if (userId !== socket.userId) return;
       socket.join(userId);
       console.log(`User ${socket.id} joined user room: ${userId}`);
 
@@ -45,9 +89,17 @@ function initSocket(server) {
       await sendUnreadMessages(userId);
     });
 
-    socket.on('joinRoom', (roomId) => {
+    socket.on('joinRoom', async ({ otherUserId }) => {
+      if (!otherUserId || await areUsersBlocked(socket.userId, otherUserId)) return;
+      const roomId = [socket.userId, otherUserId].sort().join('-');
       socket.join(roomId);
       console.log(`User ${socket.id} joined room ${roomId}`);
+    });
+
+    socket.on('leaveRoom', ({ otherUserId }) => {
+      if (!otherUserId) return;
+      const roomId = [socket.userId, otherUserId].sort().join('-');
+      socket.leave(roomId);
     });
 
     socket.on('sendMessage', async ({
@@ -61,6 +113,11 @@ function initSocket(server) {
       viewOnce = false
     }) => {
       try {
+        if (senderId !== socket.userId) {
+          socket.emit('errorMessage', { error: 'Invalid message sender.' });
+          return;
+        }
+        const safeRoomId = [socket.userId, receiverId].sort().join('-');
         if (await areUsersBlocked(senderId, receiverId)) {
           socket.emit('errorMessage', { error: 'You cannot send messages to this user.' });
           return;
@@ -97,8 +154,12 @@ function initSocket(server) {
         const fullName = capitalize(`${sender.firstName} ${sender.lastName}`);
 
 
-        const roomSockets = await io.in(roomId).fetchSockets();
-        const receiverInRoom = roomSockets.some(s => s.handshake.query.userId === receiverId);
+        const receiverSockets = await io.in(receiverId.toString()).fetchSockets();
+        const receiverInRoom = receiverSockets.length > 0;
+        if (receiverInRoom) {
+          newMessage.deliveredAt = new Date();
+          await newMessage.save();
+        }
 
         if (receiver?.pushToken && Expo.isExpoPushToken(receiver.pushToken) && !receiverInRoom) {
           const unreadMessages = await Message.count({
@@ -131,7 +192,7 @@ function initSocket(server) {
           messageWithRelations.toJSON(),
           getConfiguredBaseUrl(),
         );
-        io.to(roomId).emit('receiveMessage', outboundMessage);
+        io.to(safeRoomId).emit('receiveMessage', outboundMessage);
 
 
         await sendUnreadMessages(receiverId);
@@ -197,12 +258,16 @@ function initSocket(server) {
         console.error('❌ Photo request error:', err);
       }
     });
-    socket.on('typing', (roomId, typingUserId) => {
-      socket.to(roomId).emit('typing', { typingUserId });
+    socket.on('typing', ({ otherUserId }) => {
+      if (!otherUserId) return;
+      const roomId = [socket.userId, otherUserId].sort().join('-');
+      socket.to(roomId).emit('typing', { typingUserId: socket.userId });
     });
 
-    socket.on('stopTyping', (roomId, typingUserId) => {
-      socket.to(roomId).emit('stopTyping', { typingUserId });
+    socket.on('stopTyping', ({ otherUserId }) => {
+      if (!otherUserId) return;
+      const roomId = [socket.userId, otherUserId].sort().join('-');
+      socket.to(roomId).emit('stopTyping', { typingUserId: socket.userId });
     });
 
     socket.on('imageViewed', async ({ messageId, roomId }) => {

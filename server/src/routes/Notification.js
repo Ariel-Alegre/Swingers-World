@@ -1,0 +1,10 @@
+const express = require('express');
+const authenticateToken = require('../middleware/authenticateToken');
+const { GetNotifications, MarkNotificationsAsRead } = require('../controllers/Notification');
+
+const router = express.Router();
+
+router.get('/notifications', authenticateToken, GetNotifications);
+router.patch('/notifications/read', authenticateToken, MarkNotificationsAsRead);
+
+module.exports = router;
