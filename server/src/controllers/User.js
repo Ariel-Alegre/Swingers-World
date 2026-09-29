@@ -8,6 +8,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { findObjectionableMatch } = require('../utils/safety');
 const { getBlockedUserIdsForUser, areUsersBlocked } = require('../utils/blocks');
 const { uploadFile, deleteStoredObject, normalizeStorageReference } = require('../utils/objectStorage');
+const { matchesProfileSearch } = require('../utils/profileMatching');
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -155,34 +156,6 @@ function normalizeLookingForValue(value) {
 
   return null;
 }
-
-function getDesiredGenders(lookingFor) {
-  if (lookingFor === 'Women') {
-    return ['Female'];
-  }
-
-  if (lookingFor === 'Men') {
-    return ['Male'];
-  }
-
-  if (lookingFor === 'Both') {
-    return ['Male', 'Female'];
-  }
-
-  return [];
-}
-
-function profileMatchesSearch(profile, lookingForProfileType, lookingFor, lookingForCoupleType) {
-  if (lookingForProfileType === 'couple') {
-    return profile?.profileType === 'couple' && profile.coupleType === lookingForCoupleType;
-  }
-
-  if (profile?.profileType !== 'single') return false;
-  const desiredGenders = getDesiredGenders(lookingFor);
-  const normalizedGender = normalizeGenderValue(profile?.gender);
-  return Boolean(normalizedGender && desiredGenders.includes(normalizedGender));
-}
-
 
 module.exports = {
 
@@ -1121,7 +1094,6 @@ UpdateProfile: async (req, res) => {
             model: Profile,
             where: {
               publicProfile: true,
-              description: { [Op.ne]: null },
             }
           }
         ],
@@ -1132,18 +1104,13 @@ UpdateProfile: async (req, res) => {
       const filtrados = users.filter(u => {
         const profile = u.Profile;
 
-        const hasPhotos = Array.isArray(profile?.photos) && profile.photos.length > 0;
-        const hasValidDescription = profile?.description?.trim().length > 0;
         const hasValidProfileDetails = profile?.profileType === 'couple'
           ? Boolean(profile.partnerFirstName?.trim() && profile.partnerLastName?.trim() && VALID_COUPLE_TYPES.includes(profile.coupleType))
           : Boolean(normalizeGenderValue(profile?.gender));
 
         return (
-          u.acceptedTerms === true &&
           hasValidProfileDetails &&
-          profileMatchesSearch(profile, lookingForProfileType, lookingFor, lookingForCoupleType) &&
-          hasPhotos &&
-          hasValidDescription
+          matchesProfileSearch(profile, lookingForProfileType, lookingFor, lookingForCoupleType)
         );
       });
       for (let i = filtrados.length - 1; i > 0; i--) {
