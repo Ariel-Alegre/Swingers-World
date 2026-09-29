@@ -19,6 +19,21 @@ module.exports = (sequelize) => {
       allowNull: true,
       defaultValue: 'VIP Member',
     },
+    profileType: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'single',
+      validate: { isIn: [['single', 'couple']] },
+    },
+    partnerFirstName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    coupleType: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      validate: { isIn: [['woman_man', 'two_women', 'two_men', 'other']] },
+    },
   gender: {
        type: DataTypes.STRING,
 
@@ -38,6 +53,27 @@ module.exports = (sequelize) => {
     address: {
       type: DataTypes.STRING,
       allowNull: true,
+    },
+    city: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    region: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    countryCode: {
+      type: DataTypes.STRING(2),
+      allowNull: true,
+    },
+    timezone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    locationTrackingEnabled: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
     },
 latitude: {
   type: DataTypes.FLOAT,

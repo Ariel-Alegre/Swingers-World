@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "prestart": "node scripts/migrateSchemaToEnglish.js",
     "start": "node index.js",
     "dev": "nodemon -L",
     "db:create": "node scripts/createDatabase.js",

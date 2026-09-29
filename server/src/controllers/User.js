@@ -39,6 +39,8 @@ const planPriceIds = {
   'six_months': 'price_1ScFPtEe7RTtR8KaNYEc9CJT',
   'annual': 'price_1ScFRCEe7RTtR8KaSyN44OoN',
 };
+const VALID_PROFILE_TYPES = ['single', 'couple'];
+const VALID_COUPLE_TYPES = ['woman_man', 'two_women', 'two_men', 'other'];
 
 async function createBaseProfile(userId, firstName, lastName) {
   const existingProfile = await Profile.findOne({ where: { userId } });
@@ -168,6 +170,22 @@ function getDesiredGenders(lookingFor) {
   }
 
   return [];
+}
+
+function profileMatchesDesiredGenders(profile, desiredGenders) {
+  if (profile?.profileType !== 'couple') {
+    const normalizedGender = normalizeGenderValue(profile?.gender);
+    return Boolean(normalizedGender && desiredGenders.includes(normalizedGender));
+  }
+
+  const coupleGenders = {
+    woman_man: ['Female', 'Male'],
+    two_women: ['Female'],
+    two_men: ['Male'],
+    other: ['Female', 'Male'],
+  }[profile.coupleType] || [];
+
+  return coupleGenders.some((gender) => desiredGenders.includes(gender));
 }
 
 
@@ -481,7 +499,28 @@ webhookRevenueCat: async (req, res) => {
 
   Register: async (req, res) => {
     try {
-      const { firstName, lastName, email, password, phone, country } = req.body;
+      const {
+        firstName, lastName, email, password, phone, country,
+        profileType = 'single', gender, partnerFirstName, coupleType, acceptedTerms,
+      } = req.body;
+
+      if (!firstName || !lastName || !email || !password || !phone) {
+        return res.status(400).json({ message: 'All required registration fields must be completed.' });
+      }
+      if (!VALID_PROFILE_TYPES.includes(profileType)) {
+        return res.status(400).json({ message: 'The profile type is invalid.' });
+      }
+      if (!(acceptedTerms === true || acceptedTerms === 'true')) {
+        return res.status(400).json({ message: 'The terms and adult-age confirmation must be accepted.' });
+      }
+
+      const normalizedGender = profileType === 'single' ? normalizeGenderValue(gender) : null;
+      if (profileType === 'single' && !normalizedGender) {
+        return res.status(400).json({ message: 'Gender is required for an individual profile.' });
+      }
+      if (profileType === 'couple' && (!partnerFirstName?.trim() || !VALID_COUPLE_TYPES.includes(coupleType))) {
+        return res.status(400).json({ message: 'Partner name and couple composition are required.' });
+      }
 
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
@@ -499,13 +538,19 @@ webhookRevenueCat: async (req, res) => {
         country,
         role: 'user',
         backgroundColor: getRandomColor(),
-    
-        status: "active"
+        acceptedTerms: true,
+        status: 'active',
       });
 
       const profile = await Profile.create({
         userId: newUser.id,
-        displayName: `${firstName} ${lastName.charAt(0)}.`,
+        displayName: profileType === 'couple'
+          ? `${firstName.trim()} & ${partnerFirstName.trim()}`
+          : `${firstName.trim()} ${lastName.trim().charAt(0)}.`,
+        profileType,
+        gender: normalizedGender,
+        partnerFirstName: profileType === 'couple' ? partnerFirstName.trim() : null,
+        coupleType: profileType === 'couple' ? coupleType : null,
         description: null,
         photosVisible: true,
         privacyEnabled: false,
@@ -774,7 +819,9 @@ UpdateProfile: async (req, res) => {
 
     const {
       description, address, birthDate, gender, lookingFor, country,
-      publicProfile, photosVisible, latitude, longitude, radius
+      publicProfile, photosVisible, latitude, longitude, radius,
+      city, region, countryCode, timezone, locationSource, locationTrackingEnabled,
+      displayName, partnerFirstName, coupleType
     } = req.body;
 
     const objectionableDescriptionMatch = findObjectionableMatch(description);
@@ -787,6 +834,19 @@ UpdateProfile: async (req, res) => {
 
     const normalizedGender = gender !== undefined ? normalizeGenderValue(gender) : user.Profile.gender;
     const normalizedLookingFor = lookingFor !== undefined ? normalizeLookingForValue(lookingFor) : user.Profile.lookingFor;
+    const finalDisplayName = displayName !== undefined ? String(displayName).trim() : user.Profile.displayName;
+    const finalPartnerFirstName = partnerFirstName !== undefined ? String(partnerFirstName).trim() : user.Profile.partnerFirstName;
+    const finalCoupleType = coupleType !== undefined ? String(coupleType).trim() : user.Profile.coupleType;
+
+    if (!finalDisplayName) {
+      return res.status(400).json({ message: 'A display name is required.' });
+    }
+    if (user.Profile.profileType === 'single' && !normalizedGender) {
+      return res.status(400).json({ message: 'Gender is required for an individual profile.' });
+    }
+    if (user.Profile.profileType === 'couple' && (!finalPartnerFirstName || !VALID_COUPLE_TYPES.includes(finalCoupleType))) {
+      return res.status(400).json({ message: 'Partner name and couple composition are required.' });
+    }
 
     
     let newPhotos = [];
@@ -806,9 +866,13 @@ UpdateProfile: async (req, res) => {
     
     const finalPhotos = [...existingPhotos, ...newPhotos].slice(0, 9);
 
-    const lat = latitude !== undefined ? parseFloat(latitude) : null;
-    const lon = longitude !== undefined ? parseFloat(longitude) : null;
-    const radioNum = radius !== undefined ? parseFloat(radius) : null;
+    const manualLocation = locationSource === 'manual';
+    const parsedLatitude = manualLocation ? null : latitude !== undefined && latitude !== '' ? parseFloat(latitude) : user.Profile.latitude;
+    const parsedLongitude = manualLocation ? null : longitude !== undefined && longitude !== '' ? parseFloat(longitude) : user.Profile.longitude;
+    const parsedRadius = radius !== undefined && radius !== '' ? parseFloat(radius) : user.Profile.radius;
+    const lat = manualLocation ? null : Number.isFinite(parsedLatitude) ? parsedLatitude : user.Profile.latitude;
+    const lon = manualLocation ? null : Number.isFinite(parsedLongitude) ? parsedLongitude : user.Profile.longitude;
+    const radiusValue = Number.isFinite(parsedRadius) ? parsedRadius : user.Profile.radius;
 
     if (country !== undefined) {
       await user.update({
@@ -821,6 +885,16 @@ UpdateProfile: async (req, res) => {
       {
         description,
         address,
+        displayName: finalDisplayName,
+        partnerFirstName: user.Profile.profileType === 'couple' ? finalPartnerFirstName : null,
+        coupleType: user.Profile.profileType === 'couple' ? finalCoupleType : null,
+        city: city !== undefined ? String(city).trim() || null : user.Profile.city,
+        region: region !== undefined ? String(region).trim() || null : user.Profile.region,
+        countryCode: countryCode !== undefined ? String(countryCode).trim().toUpperCase() || null : user.Profile.countryCode,
+        timezone: timezone !== undefined ? String(timezone).trim() || null : user.Profile.timezone,
+        locationTrackingEnabled: locationTrackingEnabled !== undefined
+          ? locationTrackingEnabled === true || locationTrackingEnabled === 'true'
+          : user.Profile.locationTrackingEnabled,
         latitude: lat,
         longitude: lon,
         birthDate,
@@ -828,7 +902,7 @@ UpdateProfile: async (req, res) => {
         publicProfile,
         photosVisible,
         lookingFor: normalizedLookingFor,
-        radius: radioNum,
+        radius: radiusValue,
         
         photos: newPhotos.length > 0 ? finalPhotos : existingPhotos,
       },
@@ -1041,20 +1115,19 @@ UpdateProfile: async (req, res) => {
       
       const filtrados = users.filter(u => {
         const profile = u.Profile;
-        const normalizedGender = normalizeGenderValue(profile?.gender);
 
         const hasPhotos = Array.isArray(profile?.photos) && profile.photos.length > 0;
         const hasValidDescription = profile?.description?.trim().length > 0;
-
-        const birthDateValue = profile?.birthDate;
-        const hasValidBirthDate = !!birthDateValue && !isNaN(new Date(birthDateValue).getTime());
+        const hasValidProfileDetails = profile?.profileType === 'couple'
+          ? Boolean(profile.partnerFirstName?.trim() && VALID_COUPLE_TYPES.includes(profile.coupleType))
+          : Boolean(normalizeGenderValue(profile?.gender));
 
         return (
-          !!normalizedGender &&
-          desiredGenders.includes(normalizedGender) &&
+          u.acceptedTerms === true &&
+          hasValidProfileDetails &&
+          profileMatchesDesiredGenders(profile, desiredGenders) &&
           hasPhotos &&
-          hasValidDescription &&
-          hasValidBirthDate
+          hasValidDescription
         );
       });
       for (let i = filtrados.length - 1; i > 0; i--) {
@@ -1088,23 +1161,20 @@ UpdateProfile: async (req, res) => {
           where: {
             publicProfile: true,
             description: { [Op.ne]: null },
-            birthDate: { [Op.ne]: null },
           },
         }],
-        attributes: ['id', 'firstName', 'lastName', 'backgroundColor'],
+        attributes: ['id', 'firstName', 'lastName', 'backgroundColor', 'acceptedTerms'],
       });
-
-      const adultCutoff = new Date();
-      adultCutoff.setFullYear(adultCutoff.getFullYear() - 18);
 
       const miembros = users
         .filter((entry) => {
           const profile = entry.Profile;
-          const birthDate = new Date(profile?.birthDate);
           const hasPhotos = Array.isArray(profile?.photos) && profile.photos.length > 0;
           const hasValidDescription = Boolean(profile?.description?.trim());
-          const isAdult = !Number.isNaN(birthDate.getTime()) && birthDate <= adultCutoff;
-          return hasPhotos && hasValidDescription && isAdult;
+          const hasValidProfileDetails = profile?.profileType === 'couple'
+            ? Boolean(profile.partnerFirstName?.trim() && VALID_COUPLE_TYPES.includes(profile.coupleType))
+            : Boolean(normalizeGenderValue(profile?.gender));
+          return entry.acceptedTerms === true && hasPhotos && hasValidDescription && hasValidProfileDetails;
         })
         .map((entry) => ({
           id: entry.id,
@@ -1113,6 +1183,9 @@ UpdateProfile: async (req, res) => {
           backgroundColor: entry.backgroundColor,
           Profile: {
             displayName: entry.Profile?.displayName,
+            profileType: entry.Profile?.profileType,
+            partnerFirstName: entry.Profile?.partnerFirstName,
+            coupleType: entry.Profile?.coupleType,
             photos: entry.Profile?.photos || [],
             photosVisible: entry.Profile?.photosVisible,
             verified: entry.Profile?.verified,

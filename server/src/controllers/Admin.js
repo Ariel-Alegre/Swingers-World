@@ -216,6 +216,10 @@ module.exports = {
   UpdateAdminCreatedUserProfile: async (req, res) => {
     const { userId } = req.params;
       const {
+        displayName,
+        profileType,
+        partnerFirstName,
+        coupleType,
         gender,
         lookingFor,
       birthDate,
@@ -252,6 +256,20 @@ module.exports = {
 
       const normalizedGender = gender !== undefined ? normalizeGenderValue(gender) : profile.gender;
       const normalizedLookingFor = lookingFor !== undefined ? normalizeLookingForValue(lookingFor) : profile.lookingFor;
+      const finalProfileType = profileType !== undefined ? String(profileType).trim() : profile.profileType;
+      const finalDisplayName = displayName !== undefined ? String(displayName).trim() : profile.displayName;
+      const finalPartnerFirstName = partnerFirstName !== undefined ? String(partnerFirstName).trim() : profile.partnerFirstName;
+      const finalCoupleType = coupleType !== undefined ? String(coupleType).trim() : profile.coupleType;
+
+      if (!['single', 'couple'].includes(finalProfileType)) {
+        return res.status(400).json({ message: 'The profile type is invalid.' });
+      }
+      if (!finalDisplayName) {
+        return res.status(400).json({ message: 'A display name is required.' });
+      }
+      if (finalProfileType === 'couple' && (!finalPartnerFirstName || !['woman_man', 'two_women', 'two_men', 'other'].includes(finalCoupleType))) {
+        return res.status(400).json({ message: 'Partner name and couple composition are required.' });
+      }
 
       let existingPhotos = profile.photos || [];
       if (serializedExistingPhotos) {
@@ -279,7 +297,11 @@ module.exports = {
       const finalPhotos = [...existingPhotos, ...newPhotos].slice(0, 9);
 
       await profile.update({
-        gender: normalizedGender,
+        displayName: finalDisplayName,
+        profileType: finalProfileType,
+        partnerFirstName: finalProfileType === 'couple' ? finalPartnerFirstName : null,
+        coupleType: finalProfileType === 'couple' ? finalCoupleType : null,
+        gender: finalProfileType === 'single' ? normalizedGender : null,
         lookingFor: normalizedLookingFor,
         birthDate: birthDate || null,
         address: address || null,

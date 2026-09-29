@@ -159,6 +159,20 @@ async function migrateStoredValues(transaction) {
   }
 }
 
+async function addLocationColumns(transaction) {
+  if (!await tableExists('Profiles', transaction)) return;
+  await conn.query(`
+    ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "city" VARCHAR(255);
+    ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "region" VARCHAR(255);
+    ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "countryCode" VARCHAR(2);
+    ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "timezone" VARCHAR(255);
+    ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "locationTrackingEnabled" BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "profileType" VARCHAR(255) NOT NULL DEFAULT 'single';
+    ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "partnerFirstName" VARCHAR(255);
+    ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "coupleType" VARCHAR(255);
+  `, { transaction });
+}
+
 async function main() {
   await conn.authenticate();
   await conn.transaction(async (transaction) => {
@@ -166,6 +180,7 @@ async function main() {
     await renameLegacyConstraints(transaction);
     await migratePhotoRequestEnum(transaction);
     await migrateStoredValues(transaction);
+    await addLocationColumns(transaction);
   });
   console.log('English schema migration completed successfully.');
 }
