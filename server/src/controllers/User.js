@@ -42,6 +42,7 @@ const planPriceIds = {
 };
 const VALID_PROFILE_TYPES = ['single', 'couple'];
 const VALID_COUPLE_TYPES = ['woman_man', 'two_women', 'two_men', 'other'];
+const VALID_LOOKING_FOR_COUPLE_TYPES = [...VALID_COUPLE_TYPES, 'all'];
 
 async function createBaseProfile(userId, firstName, lastName) {
   const existingProfile = await Profile.findOne({ where: { userId } });
@@ -825,7 +826,7 @@ UpdateProfile: async (req, res) => {
     if (preferencesProvided && finalLookingForProfileType === 'single' && !normalizedLookingFor) {
       return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'The preferred person type is required.' });
     }
-    if (preferencesProvided && finalLookingForProfileType === 'couple' && !VALID_COUPLE_TYPES.includes(finalLookingForCoupleType)) {
+    if (preferencesProvided && finalLookingForProfileType === 'couple' && !VALID_LOOKING_FOR_COUPLE_TYPES.includes(finalLookingForCoupleType)) {
       return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'The preferred couple composition is required.' });
     }
 
@@ -1082,7 +1083,7 @@ UpdateProfile: async (req, res) => {
 
       if (
         (lookingForProfileType === 'single' && !lookingFor)
-        || (lookingForProfileType === 'couple' && !VALID_COUPLE_TYPES.includes(lookingForCoupleType))
+        || (lookingForProfileType === 'couple' && !VALID_LOOKING_FOR_COUPLE_TYPES.includes(lookingForCoupleType))
       ) {
         return res.status(200).json([]);
       }

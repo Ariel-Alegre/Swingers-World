@@ -34,4 +34,19 @@ describe('Discover profile matching', () => {
       'two_women',
     )).to.equal(false);
   });
+
+  it('shows every couple composition when all is selected', () => {
+    expect(matchesProfileSearch(
+      { profileType: 'couple', coupleType: 'woman_man' },
+      'couple',
+      null,
+      'all',
+    )).to.equal(true);
+    expect(matchesProfileSearch(
+      { profileType: 'couple', coupleType: 'other' },
+      'couple',
+      null,
+      'all',
+    )).to.equal(true);
+  });
 });

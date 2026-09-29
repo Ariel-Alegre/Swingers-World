@@ -173,6 +173,7 @@ async function addLocationColumns(transaction) {
     ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "coupleType" VARCHAR(255);
     ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "lookingForProfileType" VARCHAR(255) NOT NULL DEFAULT 'single';
     ALTER TABLE "Profiles" ADD COLUMN IF NOT EXISTS "lookingForCoupleType" VARCHAR(255);
+    UPDATE "Profiles" SET "lookingForCoupleType" = 'all' WHERE "lookingForCoupleType" = 'other';
   `, { transaction });
 }
 
