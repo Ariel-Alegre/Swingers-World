@@ -1104,8 +1104,8 @@ UpdateProfile: async (req, res) => {
       });
 
       
-      const filtrados = users.filter(u => {
-        const profile = u.Profile;
+      const filteredUsers = users.filter((candidate) => {
+        const profile = candidate.Profile;
 
         const hasValidProfileDetails = profile?.profileType === 'couple'
           ? Boolean(profile.partnerFirstName?.trim() && profile.partnerLastName?.trim() && VALID_COUPLE_TYPES.includes(profile.coupleType))
@@ -1116,11 +1116,31 @@ UpdateProfile: async (req, res) => {
           matchesProfileSearch(profile, lookingForProfileType, lookingFor, lookingForCoupleType)
         );
       });
-      for (let i = filtrados.length - 1; i > 0; i--) {
+      const acceptedPhotoRequests = filteredUsers.length
+        ? await PhotoRequest.findAll({
+          where: {
+            requesterId: user.id,
+            targetUserId: { [Op.in]: filteredUsers.map((candidate) => candidate.id) },
+            status: 'accepted',
+            [Op.or]: [
+              { permissionExpiresAt: null },
+              { permissionExpiresAt: { [Op.gt]: new Date() } },
+            ],
+          },
+          attributes: ['targetUserId'],
+        })
+        : [];
+      const accessibleProfileIds = new Set(acceptedPhotoRequests.map((request) => request.targetUserId));
+      const profilesWithAccess = filteredUsers.map((candidate) => ({
+        ...serializeUser(candidate),
+        canViewPrivatePhotos: accessibleProfileIds.has(candidate.id),
+      }));
+
+      for (let i = profilesWithAccess.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
-        [filtrados[i], filtrados[j]] = [filtrados[j], filtrados[i]];
+        [profilesWithAccess[i], profilesWithAccess[j]] = [profilesWithAccess[j], profilesWithAccess[i]];
       }
-      return res.status(200).json(filtrados);
+      return res.status(200).json(profilesWithAccess);
 
 
     } catch (error) {
