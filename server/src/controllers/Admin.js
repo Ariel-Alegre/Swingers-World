@@ -341,9 +341,9 @@ module.exports = {
       });
     } catch (error) {
       console.error('⚠️ Administrator profile update error:', error);
-      return res.status(500).json({
-        message: 'Internal server error',
-        error: error.message,
+      return res.status(error.status || 500).json({
+        code: error.code || 'INTERNAL_ERROR',
+        message: error.publicMessage || 'Internal server error',
       });
     }
   },

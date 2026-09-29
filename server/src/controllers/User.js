@@ -910,7 +910,10 @@ UpdateProfile: async (req, res) => {
     return res.status(200).json({ message: 'Profile updated successfully.' });
   } catch (error) {
     console.error('❌ Failed to update profile:', error);
-    return res.status(500).json({ message: 'Internal server error', error: error.message });
+    return res.status(error.status || 500).json({
+      code: error.code || 'INTERNAL_ERROR',
+      message: error.publicMessage || 'Internal server error',
+    });
   }
 },
   DeleteProfilePhoto: async (req, res) => {

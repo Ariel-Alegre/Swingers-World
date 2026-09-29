@@ -24,7 +24,11 @@ function getConfig() {
     .map(([key]) => key);
 
   if (missing.length) {
-    throw new Error(`Missing Railway Bucket configuration: ${missing.join(', ')}`);
+    const error = new Error(`Missing Railway Bucket configuration: ${missing.join(', ')}`);
+    error.status = 503;
+    error.code = 'STORAGE_NOT_CONFIGURED';
+    error.publicMessage = 'Photo storage is temporarily unavailable.';
+    throw error;
   }
 
   return config;
