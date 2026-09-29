@@ -20,7 +20,7 @@ export function RequestsScreen() {
   const load = useCallback(async (refresh = false) => {
     refresh ? setRefreshing(true) : setLoading(true);
     try {
-      const { data } = await api.get<PhotoRequest[]>('/consent/solicitudes');
+      const { data } = await api.get<PhotoRequest[]>('/photo-requests');
       setRequests(Array.isArray(data) ? data : []);
       setError('');
     } catch (value) {
@@ -33,12 +33,12 @@ export function RequestsScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
-  const respond = async (request: PhotoRequest, respuesta: 'aceptada' | 'rechazada') => {
+  const respond = async (request: PhotoRequest, decision: 'accepted' | 'rejected') => {
     setBusyId(request.id);
     try {
-      await api.put(`/consent/responder/${request.id}`, { respuesta, duracionHoras: respuesta === 'aceptada' ? 24 : undefined });
+      await api.put(`/photo-requests/${request.id}`, { decision, durationHours: decision === 'accepted' ? 24 : undefined });
       setRequests((current) => current.filter((item) => item.id !== request.id));
-      Alert.alert(respuesta === 'aceptada' ? 'Acceso concedido' : 'Solicitud rechazada', respuesta === 'aceptada' ? 'Podrá ver tus fotos privadas durante 24 horas.' : 'La solicitud fue eliminada.');
+      Alert.alert(decision === 'accepted' ? 'Acceso concedido' : 'Solicitud rechazada', decision === 'accepted' ? 'Podrá ver tus fotos privadas durante 24 horas.' : 'La solicitud fue eliminada.');
     } catch (value) {
       setError(getErrorMessage(value));
     } finally {
@@ -52,15 +52,15 @@ export function RequestsScreen() {
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator color={colors.gold} /> : (
         <FlatList
-          data={requests.filter((item) => item.estado === 'pendiente')}
+          data={requests.filter((item) => item.status === 'pending')}
           keyExtractor={(item) => item.id}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.gold} />}
           contentContainerStyle={!requests.length ? styles.emptyList : styles.list}
           ListEmptyComponent={<EmptyState icon="shield-checkmark-outline" title="No hay solicitudes pendientes" message="Las nuevas solicitudes para ver tus fotos aparecerán aquí." />}
           renderItem={({ item }) => {
-            const person = item.solicitante;
-            const name = person?.Perfil?.nombre_visible || `${person?.nombre || ''} ${person?.apellido || ''}`.trim() || 'Miembro';
-            const avatar = person?.Perfil?.visibilidad_foto ? person.Perfil.fotos?.[0]?.url : null;
+            const person = item.requester;
+            const name = person?.Profile?.displayName || `${person?.firstName || ''} ${person?.lastName || ''}`.trim() || 'Miembro';
+            const avatar = person?.Profile?.photosVisible ? person.Profile.photos?.[0]?.url : null;
             return (
               <View style={styles.card}>
                 <View style={styles.person}>
@@ -68,8 +68,8 @@ export function RequestsScreen() {
                   <View><Text style={styles.name}>{name}</Text><Text style={styles.copy}>Quiere ver tus fotos privadas</Text></View>
                 </View>
                 <View style={styles.actions}>
-                  <AppButton title="Rechazar" variant="secondary" onPress={() => void respond(item, 'rechazada')} disabled={busyId === item.id} style={styles.button} />
-                  <AppButton title="Aceptar 24 h" onPress={() => void respond(item, 'aceptada')} loading={busyId === item.id} style={styles.button} />
+                  <AppButton title="Rechazar" variant="secondary" onPress={() => void respond(item, 'rejected')} disabled={busyId === item.id} style={styles.button} />
+                  <AppButton title="Aceptar 24 h" onPress={() => void respond(item, 'accepted')} loading={busyId === item.id} style={styles.button} />
                 </View>
               </View>
             );

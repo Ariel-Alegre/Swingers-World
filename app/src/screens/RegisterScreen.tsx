@@ -11,14 +11,14 @@ import type { AuthStackParamList } from '../navigation/types';
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 export function RegisterScreen({ navigation }: Props) {
-  const [form, setForm] = useState({ nombre: '', apellido: '', email: '', telefono: '', password: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '' });
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const update = (key: keyof typeof form) => (value: string) => setForm((current) => ({ ...current, [key]: value }));
 
   const submit = async () => {
-    if (!form.nombre.trim() || !form.apellido.trim() || !form.email.trim() || !form.password || !form.telefono.trim()) {
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim() || !form.password || !form.phone.trim()) {
       return setError('Completá todos los campos.');
     }
     if (form.password.length < 8) return setError('La contraseña debe tener al menos 8 caracteres.');
@@ -26,13 +26,13 @@ export function RegisterScreen({ navigation }: Props) {
     setLoading(true);
     setError('');
     try {
-      await api.post('/registrarse', {
-        nombre: form.nombre.trim(),
-        apellido: form.apellido.trim(),
-        correo_electronico: form.email.trim().toLowerCase(),
-        contraseña: form.password,
-        telefono: form.telefono.trim(),
-        acepta_terminos: true,
+      await api.post('/register', {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        phone: form.phone.trim(),
+        acceptedTerms: true,
       });
       navigation.replace('Login');
     } catch (value) {
@@ -51,10 +51,10 @@ export function RegisterScreen({ navigation }: Props) {
           <Text style={styles.subtitle}>Sólo para mayores de 18 años.</Text>
         </View>
         <View style={styles.form}>
-          <AppField label="Nombre" value={form.nombre} onChangeText={update('nombre')} autoComplete="given-name" />
-          <AppField label="Apellido" value={form.apellido} onChangeText={update('apellido')} autoComplete="family-name" />
+          <AppField label="Nombre" value={form.firstName} onChangeText={update('firstName')} autoComplete="given-name" />
+          <AppField label="Apellido" value={form.lastName} onChangeText={update('lastName')} autoComplete="family-name" />
           <AppField label="Correo electrónico" value={form.email} onChangeText={update('email')} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
-          <AppField label="Teléfono" value={form.telefono} onChangeText={update('telefono')} keyboardType="phone-pad" autoComplete="tel" />
+          <AppField label="Teléfono" value={form.phone} onChangeText={update('phone')} keyboardType="phone-pad" autoComplete="tel" />
           <AppField label="Contraseña" value={form.password} onChangeText={update('password')} secureTextEntry autoComplete="new-password" />
           <Pressable onPress={() => setAccepted((value) => !value)} style={styles.checkRow}>
             <View style={[styles.checkbox, accepted && styles.checked]}>{accepted ? <Text style={styles.check}>✓</Text> : null}</View>

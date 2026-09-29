@@ -24,7 +24,7 @@ export function LikesScreen({ navigation }: { navigation: Navigation }) {
   const load = useCallback(async (refresh = false) => {
     refresh ? setRefreshing(true) : setLoading(true);
     try {
-      const { data } = await api.get<User[]>('/mis-likes');
+      const { data } = await api.get<User[]>('/likes');
       setUsers(Array.isArray(data) ? data : []);
       setError('');
     } catch (value) {
@@ -39,7 +39,7 @@ export function LikesScreen({ navigation }: { navigation: Navigation }) {
 
   const remove = async (id: string) => {
     try {
-      await api.delete(`/mis-likes/${id}`);
+      await api.delete(`/likes/${id}`);
       setUsers((current) => current.filter((item) => item.id !== id));
     } catch (value) {
       setError(getErrorMessage(value));
@@ -58,14 +58,14 @@ export function LikesScreen({ navigation }: { navigation: Navigation }) {
           contentContainerStyle={!users.length ? styles.emptyList : styles.list}
           ListEmptyComponent={<EmptyState icon="heart-outline" title="Todavía no guardaste perfiles" message="Cuando alguien te interese, tocá el corazón para encontrarlo aquí." />}
           renderItem={({ item }) => {
-            const name = item.Perfil?.nombre_visible || `${item.nombre} ${item.apellido}`;
-            const avatar = item.Perfil?.visibilidad_foto ? item.Perfil?.fotos?.[0]?.url : null;
+            const name = item.Profile?.displayName || `${item.firstName} ${item.lastName}`;
+            const avatar = item.Profile?.photosVisible ? item.Profile?.photos?.[0]?.url : null;
             return (
               <Pressable onPress={() => navigation.navigate('Profile', { userId: item.id })} style={styles.row}>
                 <UserAvatar uri={avatar} name={name} size={58} />
                 <View style={styles.copy}>
                   <Text style={styles.name}>{name}</Text>
-                  <Text numberOfLines={1} style={styles.description}>{item.Perfil?.descripcion || 'Ver perfil'}</Text>
+                  <Text numberOfLines={1} style={styles.description}>{item.Profile?.description || 'Ver perfil'}</Text>
                 </View>
                 <Pressable onPress={() => void remove(item.id)} hitSlop={12}><Ionicons name="trash-outline" size={21} color={colors.danger} /></Pressable>
               </Pressable>

@@ -26,7 +26,7 @@ export function ChatsScreen({ navigation }: { navigation: Navigation }) {
     if (!user) return;
     refresh ? setRefreshing(true) : setLoading(true);
     try {
-      const { data } = await api.get<Conversation[]>('/conversaciones', { params: { userId: user.id } });
+      const { data } = await api.get<Conversation[]>('/conversations', { params: { userId: user.id } });
       setItems(Array.isArray(data) ? data : []);
       setError('');
     } catch (value) {
@@ -46,18 +46,18 @@ export function ChatsScreen({ navigation }: { navigation: Navigation }) {
       {loading ? <ActivityIndicator color={colors.gold} /> : (
         <FlatList
           data={items}
-          keyExtractor={(item) => item.interlocutorId}
+          keyExtractor={(item) => item.participantId}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.gold} />}
           contentContainerStyle={!items.length ? styles.emptyList : styles.list}
           ListEmptyComponent={<EmptyState icon="chatbubbles-outline" title="Todavía no hay conversaciones" message="Abrí un perfil y enviá el primer mensaje." />}
           renderItem={({ item }) => {
-            const name = `${item.nombre} ${item.apellido}`.trim();
+            const name = `${item.firstName} ${item.lastName}`.trim();
             return (
-              <Pressable onPress={() => navigation.navigate('ChatDetail', { userId: item.interlocutorId, name, avatar: item.avatar })} style={styles.row}>
+              <Pressable onPress={() => navigation.navigate('ChatDetail', { userId: item.participantId, name, avatar: item.avatar })} style={styles.row}>
                 <UserAvatar uri={item.avatar} name={name} size={58} />
                 <View style={styles.copy}>
-                  <View style={styles.nameRow}><Text style={styles.name}>{name}</Text>{item.ultimoMensajeDeOtro && !item.leido ? <View style={styles.dot} /> : null}</View>
-                  <Text numberOfLines={1} style={styles.message}>{item.ultimoMensaje || 'Imagen'}</Text>
+                  <View style={styles.nameRow}><Text style={styles.name}>{name}</Text>{item.isIncoming && !item.read ? <View style={styles.dot} /> : null}</View>
+                  <Text numberOfLines={1} style={styles.message}>{item.lastMessage || 'Imagen'}</Text>
                 </View>
               </Pressable>
             );

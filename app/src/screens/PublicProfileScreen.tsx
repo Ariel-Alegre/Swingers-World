@@ -23,11 +23,11 @@ export function PublicProfileScreen({ route, navigation }: Props) {
     setLoading(true);
     try {
       const [{ data: profile }, { data: permission }] = await Promise.all([
-        api.get<User>(`/perfil/${route.params.userId}`),
-        api.get<{ permitido: boolean }>('/consent/verificada', { params: { objetivoId: route.params.userId } }),
+        api.get<User>(`/profiles/${route.params.userId}`),
+        api.get<{ allowed: boolean }>('/photo-access', { params: { targetUserId: route.params.userId } }),
       ]);
       setUser(profile);
-      setAllowed(Boolean(permission.permitido));
+      setAllowed(Boolean(permission.allowed));
     } catch (value) {
       setError(getErrorMessage(value));
     } finally {
@@ -40,7 +40,7 @@ export function PublicProfileScreen({ route, navigation }: Props) {
   const requestPhotos = async () => {
     setActionLoading(true);
     try {
-      const { data } = await api.post<{ message?: string }>('/consent/solicitar', { objetivoId: route.params.userId });
+      const { data } = await api.post<{ message?: string }>('/photo-requests', { targetUserId: route.params.userId });
       Alert.alert('Solicitud enviada', data.message || 'La persona recibirá tu solicitud.');
     } catch (value) {
       Alert.alert('No se pudo enviar', getErrorMessage(value));
@@ -57,7 +57,7 @@ export function PublicProfileScreen({ route, navigation }: Props) {
       {
         text: 'Enviar reporte', onPress: () => void (async () => {
           try {
-            await api.post('/report-user', { reportedUserId: route.params.userId, reason: 'inappropriate_content', source: 'profile' });
+            await api.post('/reports', { reportedUserId: route.params.userId, reason: 'inappropriate_content', source: 'profile' });
             Alert.alert('Reporte recibido', 'Gracias por ayudarnos a cuidar la comunidad.');
           } catch (value) {
             Alert.alert('No se pudo reportar', getErrorMessage(value));
@@ -75,7 +75,7 @@ export function PublicProfileScreen({ route, navigation }: Props) {
       {
         text: 'Bloquear', style: 'destructive', onPress: () => void (async () => {
           try {
-            await api.post('/block-user', { blockedUserId: route.params.userId, source: 'profile' });
+            await api.post('/blocks', { blockedUserId: route.params.userId, source: 'profile' });
             Alert.alert('Usuario bloqueado');
             navigation.navigate('Tabs', { screen: 'Descubrir' });
           } catch (value) {
@@ -88,13 +88,13 @@ export function PublicProfileScreen({ route, navigation }: Props) {
 
   if (loading) return <Screen contentStyle={styles.center}><ActivityIndicator size="large" color={colors.gold} /></Screen>;
   if (!user) return <Screen><Text style={styles.error}>{error || 'Perfil no disponible.'}</Text></Screen>;
-  const visible = Boolean(user.Perfil?.visibilidad_foto || allowed);
-  const photos = visible ? user.Perfil?.fotos ?? [] : [];
-  const name = user.Perfil?.nombre_visible || `${user.nombre} ${user.apellido}`;
+  const visible = Boolean(user.Profile?.photosVisible || allowed);
+  const photos = visible ? user.Profile?.photos ?? [] : [];
+  const name = user.Profile?.displayName || `${user.firstName} ${user.lastName}`;
 
   return (
     <Screen scroll>
-      <Header title={name} subtitle={user.Perfil?.verificado ? 'Perfil verificado' : 'Miembro de la comunidad'} />
+      <Header title={name} subtitle={user.Profile?.verified ? 'Perfil verificado' : 'Miembro de la comunidad'} />
       {photos.length ? (
         <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={styles.gallery}>
           {photos.map((photo, index) => <Image key={`${photo.url}-${index}`} source={{ uri: photo.url }} style={styles.photo} />)}
@@ -107,12 +107,12 @@ export function PublicProfileScreen({ route, navigation }: Props) {
         </View>
       )}
       <View style={styles.details}>
-        {user.Perfil?.direccion ? <Text style={styles.meta}><Ionicons name="location-outline" /> {user.Perfil.direccion}</Text> : null}
+        {user.Profile?.address ? <Text style={styles.meta}><Ionicons name="location-outline" /> {user.Profile.address}</Text> : null}
         <Text style={styles.section}>Sobre mí</Text>
-        <Text style={styles.description}>{user.Perfil?.descripcion || 'Sin descripción todavía.'}</Text>
+        <Text style={styles.description}>{user.Profile?.description || 'Sin descripción todavía.'}</Text>
         <View style={styles.tags}>
-          {user.Perfil?.genero ? <Text style={styles.tag}>{user.Perfil.genero}</Text> : null}
-          {user.Perfil?.busco ? <Text style={styles.tag}>Busca: {user.Perfil.busco}</Text> : null}
+          {user.Profile?.gender ? <Text style={styles.tag}>{user.Profile.gender}</Text> : null}
+          {user.Profile?.lookingFor ? <Text style={styles.tag}>Busca: {user.Profile.lookingFor}</Text> : null}
         </View>
       </View>
       {!visible ? <AppButton title="Solicitar acceso a fotos" onPress={requestPhotos} loading={actionLoading} /> : null}

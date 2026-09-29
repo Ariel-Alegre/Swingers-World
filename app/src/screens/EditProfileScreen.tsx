@@ -17,16 +17,16 @@ type LocalPhoto = { uri: string; name: string; type: string };
 
 export function EditProfileScreen({ navigation }: Props) {
   const { user, refreshUser } = useAuth();
-  const profile = user?.Perfil;
-  const [description, setDescription] = useState(profile?.descripcion || '');
-  const [location, setLocation] = useState(profile?.direccion || '');
-  const [gender, setGender] = useState(profile?.genero || '');
-  const [lookingFor, setLookingFor] = useState(profile?.busco || '');
-  const [publicProfile, setPublicProfile] = useState(profile?.perfil_publico ?? true);
-  const [publicPhotos, setPublicPhotos] = useState(profile?.visibilidad_foto ?? false);
+  const profile = user?.Profile;
+  const [description, setDescription] = useState(profile?.description || '');
+  const [location, setLocation] = useState(profile?.address || '');
+  const [gender, setGender] = useState(profile?.gender || '');
+  const [lookingFor, setLookingFor] = useState(profile?.lookingFor || '');
+  const [publicProfile, setPublicProfile] = useState(profile?.publicProfile ?? true);
+  const [publicPhotos, setPublicPhotos] = useState(profile?.photosVisible ?? false);
   const [newPhotos, setNewPhotos] = useState<LocalPhoto[]>([]);
   const [saving, setSaving] = useState(false);
-  const existingPhotos = useMemo(() => profile?.fotos ?? [], [profile?.fotos]);
+  const existingPhotos = useMemo(() => profile?.photos ?? [], [profile?.photos]);
 
   const pickPhotos = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsMultipleSelection: true, selectionLimit: Math.max(1, 9 - existingPhotos.length), quality: 0.82 });
@@ -39,14 +39,14 @@ export function EditProfileScreen({ navigation }: Props) {
     setSaving(true);
     try {
       const data = new FormData();
-      data.append('descripcion', description.trim());
-      data.append('direccion', location.trim());
-      data.append('genero', gender.trim());
-      data.append('busco', lookingFor.trim());
-      data.append('perfil_publico', String(publicProfile));
-      data.append('visibilidad_foto', String(publicPhotos));
-      newPhotos.forEach((photo) => data.append('fotos', photo as unknown as Blob));
-      await api.patch('/actualizar-perfil', data, { headers: { 'Content-Type': 'multipart/form-data' } });
+      data.append('description', description.trim());
+      data.append('address', location.trim());
+      data.append('gender', gender.trim());
+      data.append('lookingFor', lookingFor.trim());
+      data.append('publicProfile', String(publicProfile));
+      data.append('photosVisible', String(publicPhotos));
+      newPhotos.forEach((photo) => data.append('photos', photo as unknown as Blob));
+      await api.patch('/profile', data, { headers: { 'Content-Type': 'multipart/form-data' } });
       await refreshUser();
       Alert.alert('Perfil actualizado', 'Tus cambios se guardaron correctamente.');
       navigation.goBack();

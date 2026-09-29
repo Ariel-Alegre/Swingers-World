@@ -24,8 +24,8 @@ export function ChatDetailScreen({ route }: Props) {
   const load = useCallback(async () => {
     if (!user) return;
     try {
-      const { data } = await api.get<Message[]>('/mensajes', { params: { emisorId: user.id, receptorId: route.params.userId } });
-      const sorted = [...(Array.isArray(data) ? data : [])].sort((a, b) => new Date(a.fecha).getTime() - new Date(b.fecha).getTime());
+      const { data } = await api.get<Message[]>('/messages', { params: { senderId: user.id, receiverId: route.params.userId } });
+      const sorted = [...(Array.isArray(data) ? data : [])].sort((a, b) => new Date(a.sentAt).getTime() - new Date(b.sentAt).getTime());
       setMessages(sorted);
       setError('');
     } catch (value) {
@@ -43,7 +43,7 @@ export function ChatDetailScreen({ route }: Props) {
     setText('');
     setSending(true);
     try {
-      const { data } = await api.post<Message>('/mensaje', { emisorId: user.id, receptorId: route.params.userId, mensaje: message });
+      const { data } = await api.post<Message>('/messages', { senderId: user.id, receiverId: route.params.userId, content: message });
       setMessages((current) => [...current, data]);
       requestAnimationFrame(() => listRef.current?.scrollToEnd({ animated: true }));
     } catch (value) {
@@ -69,8 +69,8 @@ export function ChatDetailScreen({ route }: Props) {
           contentContainerStyle={styles.messages}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
           renderItem={({ item }) => {
-            const mine = item.emisorId === user?.id;
-            return <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}><Text style={styles.bubbleText}>{item.mensaje || 'Imagen'}</Text></View>;
+            const mine = item.senderId === user?.id;
+            return <View style={[styles.bubble, mine ? styles.mine : styles.theirs]}><Text style={styles.bubbleText}>{item.content || 'Imagen'}</Text></View>;
           }}
         />
       )}

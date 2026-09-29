@@ -18,7 +18,7 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
   const [loading, setLoading] = useState(true);
 
   const refreshUser = useCallback(async () => {
-    const { data } = await api.get<User>('/mi-perfil');
+    const { data } = await api.get<User>('/me');
     setUser(data);
   }, []);
 
@@ -36,15 +36,15 @@ export function AuthProvider({ children }: React.PropsWithChildren) {
   }, [refreshUser]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { data } = await api.post<LoginResponse>('/iniciar-sesion', {
-      correo_electronico: email.trim().toLowerCase(),
-      contraseña: password,
+    const { data } = await api.post<LoginResponse>('/login', {
+      email: email.trim().toLowerCase(),
+      password: password,
     });
     await setToken(data.token);
     try {
       await refreshUser();
     } catch {
-      setUser(data.usuario);
+      setUser(data.user);
     }
   }, [refreshUser]);
 

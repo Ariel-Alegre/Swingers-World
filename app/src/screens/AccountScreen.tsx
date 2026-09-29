@@ -19,9 +19,9 @@ export function AccountScreen({ navigation }: { navigation: Navigation }) {
   const { user, signOut } = useAuth();
   const [deleting, setDeleting] = useState(false);
   if (!user) return null;
-  const profile = user.Perfil;
-  const name = profile?.nombre_visible || `${user.nombre} ${user.apellido}`;
-  const photo = profile?.fotos?.[0]?.url;
+  const profile = user.Profile;
+  const name = profile?.displayName || `${user.firstName} ${user.lastName}`;
+  const photo = profile?.photos?.[0]?.url;
 
   const confirmDelete = () => Alert.alert(
     'Eliminar cuenta',
@@ -32,7 +32,7 @@ export function AccountScreen({ navigation }: { navigation: Navigation }) {
         text: 'Eliminar definitivamente', style: 'destructive', onPress: () => void (async () => {
           setDeleting(true);
           try {
-            await api.delete('/eliminar-cuenta');
+            await api.delete('/account');
             await signOut();
           } catch (value) {
             Alert.alert('No se pudo eliminar', getErrorMessage(value));
@@ -50,9 +50,9 @@ export function AccountScreen({ navigation }: { navigation: Navigation }) {
       <View style={styles.profileCard}>
         {photo ? <Image source={{ uri: photo }} style={styles.cover} /> : <UserAvatar name={name} size={110} />}
         <Text style={styles.name}>{name}</Text>
-        <Text style={styles.email}>{user.correo_electronico}</Text>
+        <Text style={styles.email}>{user.email}</Text>
         <View style={styles.badges}>
-          {profile?.verificado ? <Text style={styles.badge}>✓ Verificado</Text> : null}
+          {profile?.verified ? <Text style={styles.badge}>✓ Verificado</Text> : null}
           <Text style={styles.badge}>{user.plan || 'Miembro'}</Text>
         </View>
       </View>

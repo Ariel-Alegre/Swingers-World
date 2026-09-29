@@ -36,7 +36,7 @@ export function DiscoverScreen({ navigation }: { navigation: Navigation }) {
     refresh ? setRefreshing(true) : setLoading(true);
     setError('');
     try {
-      const { data } = await api.get<User[]>('/perfiles');
+      const { data } = await api.get<User[]>('/profiles');
       setUsers(Array.isArray(data) ? data : []);
       setIndex(0);
     } catch (value) {
@@ -55,7 +55,7 @@ export function DiscoverScreen({ navigation }: { navigation: Navigation }) {
     if (!user || liking) return;
     setLiking(true);
     try {
-      await api.post('/like', { likedUserId: user.id });
+      await api.post('/likes', { likedUserId: user.id });
       next();
     } catch (value) {
       setError(getErrorMessage(value));
@@ -75,8 +75,8 @@ export function DiscoverScreen({ navigation }: { navigation: Navigation }) {
       ) : (
         <View style={styles.card}>
           <Pressable onPress={() => navigation.navigate('Profile', { userId: user.id })}>
-            {user.Perfil?.visibilidad_foto && user.Perfil.fotos?.[0]?.url ? (
-              <Image source={{ uri: user.Perfil.fotos[0].url }} style={styles.photo} />
+            {user.Profile?.photosVisible && user.Profile.photos?.[0]?.url ? (
+              <Image source={{ uri: user.Profile.photos[0].url }} style={styles.photo} />
             ) : (
               <View style={[styles.photo, styles.privatePhoto]}>
                 <Ionicons name="lock-closed" size={42} color={colors.gold} />
@@ -86,12 +86,12 @@ export function DiscoverScreen({ navigation }: { navigation: Navigation }) {
             )}
             <View style={styles.info}>
               <View style={styles.nameRow}>
-                <Text style={styles.name}>{user.Perfil?.nombre_visible || `${user.nombre} ${user.apellido}`}</Text>
-                {ageFromDate(user.Perfil?.fecha_nacimiento) ? <Text style={styles.age}>{ageFromDate(user.Perfil?.fecha_nacimiento)}</Text> : null}
-                {user.Perfil?.verificado ? <Ionicons name="checkmark-circle" size={21} color={colors.success} /> : null}
+                <Text style={styles.name}>{user.Profile?.displayName || `${user.firstName} ${user.lastName}`}</Text>
+                {ageFromDate(user.Profile?.birthDate) ? <Text style={styles.age}>{ageFromDate(user.Profile?.birthDate)}</Text> : null}
+                {user.Profile?.verified ? <Ionicons name="checkmark-circle" size={21} color={colors.success} /> : null}
               </View>
-              {user.Perfil?.direccion ? <Text style={styles.location}><Ionicons name="location-outline" /> {user.Perfil.direccion}</Text> : null}
-              <Text style={styles.description} numberOfLines={3}>{user.Perfil?.descripcion || 'Prefiere conocerte antes de compartir más detalles.'}</Text>
+              {user.Profile?.address ? <Text style={styles.location}><Ionicons name="location-outline" /> {user.Profile.address}</Text> : null}
+              <Text style={styles.description} numberOfLines={3}>{user.Profile?.description || 'Prefiere conocerte antes de compartir más detalles.'}</Text>
             </View>
           </Pressable>
           <View style={styles.actions}>
