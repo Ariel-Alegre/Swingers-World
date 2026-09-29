@@ -1312,6 +1312,38 @@ UpdateProfile: async (req, res) => {
     }
   },
 
+  GetReceivedLikes: async (req, res) => {
+    try {
+      const token = req.headers.authorization?.split(' ')[1];
+      if (!token) return res.status(401).json({ message: 'Token is required.' });
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const userId = decoded.id;
+      const blockedUserIds = await getBlockedUserIdsForUser(userId);
+      const where = { likedUserId: userId };
+
+      if (blockedUserIds.length) {
+        where.userId = { [Op.notIn]: blockedUserIds };
+      }
+
+      const likes = await Like.findAll({
+        where,
+        include: [{
+          model: User,
+          as: 'user',
+          attributes: ['id', 'firstName', 'lastName', 'backgroundColor'],
+          include: ['Profile'],
+        }],
+        order: [['createdAt', 'DESC']],
+      });
+
+      return res.status(200).json(likes.map((like) => like.user).filter(Boolean));
+    } catch (error) {
+      console.error('Failed to retrieve received likes:', error);
+      return res.status(500).json({ message: 'Server error', error: error.message });
+    }
+  },
+
   DeleteLike: async (req, res) => {
     try {
       const token = req.headers.authorization?.split(' ')[1];

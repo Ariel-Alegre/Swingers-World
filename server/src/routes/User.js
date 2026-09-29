@@ -13,6 +13,7 @@ const {
   GetIOSCommunityProfiles,
   LikeUser,
   GetMyLikes,
+  GetReceivedLikes,
   DeleteLike,
   ReportUser,
   BlockUser,
@@ -37,6 +38,7 @@ router.get('/ios/community-members', authenticateToken, GetIOSCommunityProfiles)
 router.get('/profiles/:id', authenticateToken, GetProfile);
 router.post('/likes', authenticateToken, LikeUser);
 router.get('/likes', authenticateToken, GetMyLikes);
+router.get('/likes/received', authenticateToken, GetReceivedLikes);
 router.delete('/likes/:id', authenticateToken, DeleteLike);
 router.post('/reports', authenticateToken, ReportUser);
 router.post('/blocks', authenticateToken, BlockUser);
