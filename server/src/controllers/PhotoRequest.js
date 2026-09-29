@@ -116,6 +116,35 @@ const GetPhotoRequests = async (req, res) => {
   }
 };
 
+const GetSentPhotoRequests = async (req, res) => {
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(401).json({ message: 'Authentication is required' });
+  }
+
+  try {
+    const photoRequests = await PhotoRequest.findAll({
+      where: { requesterId: userId },
+      include: [{
+        model: User,
+        as: 'targetUser',
+        attributes: ['id', 'firstName', 'lastName', 'backgroundColor'],
+        include: [{
+          model: Profile,
+          attributes: ['displayName', 'photos', 'photosVisible', 'verified', 'description', 'address'],
+        }],
+      }],
+      order: [['createdAt', 'DESC']],
+    });
+
+    res.json(photoRequests);
+  } catch (error) {
+    console.error('Failed to retrieve sent photo requests:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 
 
 const RespondToPhotoRequest = async (req, res) => {
@@ -281,4 +310,4 @@ const GetAcceptedPhotoRequests = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
-module.exports = { RequestPhotoAccess, GetPhotoRequests, RespondToPhotoRequest, VerifyPhotoAccess, GetAcceptedPhotoRequests};
+module.exports = { RequestPhotoAccess, GetPhotoRequests, GetSentPhotoRequests, RespondToPhotoRequest, VerifyPhotoAccess, GetAcceptedPhotoRequests};
