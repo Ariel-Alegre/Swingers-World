@@ -221,6 +221,8 @@ module.exports = {
         coupleType,
         gender,
         lookingFor,
+        lookingForProfileType,
+        lookingForCoupleType,
       birthDate,
       address,
       description,
@@ -255,6 +257,8 @@ module.exports = {
 
       const normalizedGender = gender !== undefined ? normalizeGenderValue(gender) : profile.gender;
       const normalizedLookingFor = lookingFor !== undefined ? normalizeLookingForValue(lookingFor) : profile.lookingFor;
+      const finalLookingForProfileType = lookingForProfileType !== undefined ? String(lookingForProfileType).trim() : profile.lookingForProfileType || 'single';
+      const finalLookingForCoupleType = lookingForCoupleType !== undefined ? String(lookingForCoupleType).trim() : profile.lookingForCoupleType;
       const finalProfileType = profileType !== undefined ? String(profileType).trim() : profile.profileType;
       const finalDisplayName = displayName !== undefined ? String(displayName).trim() : profile.displayName;
       const finalPartnerFirstName = partnerFirstName !== undefined ? String(partnerFirstName).trim() : profile.partnerFirstName;
@@ -269,6 +273,12 @@ module.exports = {
       }
       if (finalProfileType === 'couple' && (!finalPartnerFirstName || !finalPartnerLastName || !['woman_man', 'two_women', 'two_men', 'other'].includes(finalCoupleType))) {
         return res.status(400).json({ message: 'Partner first name, last name, and couple composition are required.' });
+      }
+      if (!['single', 'couple'].includes(finalLookingForProfileType)) {
+        return res.status(400).json({ message: 'The preferred profile type is invalid.' });
+      }
+      if (finalLookingForProfileType === 'couple' && !['woman_man', 'two_women', 'two_men', 'other'].includes(finalLookingForCoupleType)) {
+        return res.status(400).json({ message: 'The preferred couple composition is required.' });
       }
 
       let existingPhotos = profile.photos || [];
@@ -303,7 +313,9 @@ module.exports = {
         partnerLastName: finalProfileType === 'couple' ? finalPartnerLastName : null,
         coupleType: finalProfileType === 'couple' ? finalCoupleType : null,
         gender: finalProfileType === 'single' ? normalizedGender : null,
-        lookingFor: normalizedLookingFor,
+        lookingFor: finalLookingForProfileType === 'single' ? normalizedLookingFor : null,
+        lookingForProfileType: finalLookingForProfileType,
+        lookingForCoupleType: finalLookingForProfileType === 'couple' ? finalLookingForCoupleType : null,
         birthDate: birthDate || null,
         address: address || null,
         description: description || null,

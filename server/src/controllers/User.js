@@ -172,20 +172,15 @@ function getDesiredGenders(lookingFor) {
   return [];
 }
 
-function profileMatchesDesiredGenders(profile, desiredGenders) {
-  if (profile?.profileType !== 'couple') {
-    const normalizedGender = normalizeGenderValue(profile?.gender);
-    return Boolean(normalizedGender && desiredGenders.includes(normalizedGender));
+function profileMatchesSearch(profile, lookingForProfileType, lookingFor, lookingForCoupleType) {
+  if (lookingForProfileType === 'couple') {
+    return profile?.profileType === 'couple' && profile.coupleType === lookingForCoupleType;
   }
 
-  const coupleGenders = {
-    woman_man: ['Female', 'Male'],
-    two_women: ['Female'],
-    two_men: ['Male'],
-    other: ['Female', 'Male'],
-  }[profile.coupleType] || [];
-
-  return coupleGenders.some((gender) => desiredGenders.includes(gender));
+  if (profile?.profileType !== 'single') return false;
+  const desiredGenders = getDesiredGenders(lookingFor);
+  const normalizedGender = normalizeGenderValue(profile?.gender);
+  return Boolean(normalizedGender && desiredGenders.includes(normalizedGender));
 }
 
 
@@ -814,7 +809,7 @@ UpdateProfile: async (req, res) => {
     }
 
     const {
-      description, address, birthDate, gender, lookingFor, country,
+      description, address, birthDate, gender, lookingFor, lookingForProfileType, lookingForCoupleType, country,
       publicProfile, photosVisible, latitude, longitude, radius,
       city, region, countryCode, timezone, locationSource, locationTrackingEnabled,
       displayName, partnerFirstName, partnerLastName, coupleType
@@ -830,6 +825,13 @@ UpdateProfile: async (req, res) => {
 
     const normalizedGender = gender !== undefined ? normalizeGenderValue(gender) : user.Profile.gender;
     const normalizedLookingFor = lookingFor !== undefined ? normalizeLookingForValue(lookingFor) : user.Profile.lookingFor;
+    const preferencesProvided = lookingFor !== undefined || lookingForProfileType !== undefined || lookingForCoupleType !== undefined;
+    const finalLookingForProfileType = lookingForProfileType !== undefined
+      ? String(lookingForProfileType).trim()
+      : user.Profile.lookingForProfileType || 'single';
+    const finalLookingForCoupleType = lookingForCoupleType !== undefined
+      ? String(lookingForCoupleType).trim()
+      : user.Profile.lookingForCoupleType;
     const finalDisplayName = displayName !== undefined ? String(displayName).trim() : user.Profile.displayName;
     const finalPartnerFirstName = partnerFirstName !== undefined ? String(partnerFirstName).trim() : user.Profile.partnerFirstName;
     const finalPartnerLastName = partnerLastName !== undefined ? String(partnerLastName).trim() : user.Profile.partnerLastName;
@@ -843,6 +845,15 @@ UpdateProfile: async (req, res) => {
     }
     if (user.Profile.profileType === 'couple' && (!finalPartnerFirstName || !finalPartnerLastName || !VALID_COUPLE_TYPES.includes(finalCoupleType))) {
       return res.status(400).json({ message: 'Partner first name, last name, and couple composition are required.' });
+    }
+    if (preferencesProvided && !VALID_PROFILE_TYPES.includes(finalLookingForProfileType)) {
+      return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'The preferred profile type is invalid.' });
+    }
+    if (preferencesProvided && finalLookingForProfileType === 'single' && !normalizedLookingFor) {
+      return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'The preferred person type is required.' });
+    }
+    if (preferencesProvided && finalLookingForProfileType === 'couple' && !VALID_COUPLE_TYPES.includes(finalLookingForCoupleType)) {
+      return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'The preferred couple composition is required.' });
     }
 
     
@@ -899,7 +910,13 @@ UpdateProfile: async (req, res) => {
         gender: normalizedGender,
         publicProfile,
         photosVisible,
-        lookingFor: normalizedLookingFor,
+        lookingFor: preferencesProvided
+          ? finalLookingForProfileType === 'single' ? normalizedLookingFor : null
+          : user.Profile.lookingFor,
+        lookingForProfileType: preferencesProvided ? finalLookingForProfileType : user.Profile.lookingForProfileType,
+        lookingForCoupleType: preferencesProvided && finalLookingForProfileType === 'couple'
+          ? finalLookingForCoupleType
+          : preferencesProvided ? null : user.Profile.lookingForCoupleType,
         radius: radiusValue,
         
         photos: newPhotos.length > 0 ? finalPhotos : existingPhotos,
@@ -1083,15 +1100,14 @@ UpdateProfile: async (req, res) => {
       const blockedUserIds = await getBlockedUserIdsForUser(user.id);
       const excludedIds = [user.id, ...blockedUserIds];
 
+      const lookingForProfileType = user.Profile.lookingForProfileType || 'single';
       const lookingFor = normalizeLookingForValue(user.Profile.lookingFor);
+      const lookingForCoupleType = user.Profile.lookingForCoupleType;
 
-      if (!lookingFor) {
-        return res.status(200).json([]);
-      }
-
-      const desiredGenders = getDesiredGenders(lookingFor);
-
-      if (!desiredGenders.length) {
+      if (
+        (lookingForProfileType === 'single' && !lookingFor)
+        || (lookingForProfileType === 'couple' && !VALID_COUPLE_TYPES.includes(lookingForCoupleType))
+      ) {
         return res.status(200).json([]);
       }
 
@@ -1105,7 +1121,6 @@ UpdateProfile: async (req, res) => {
             model: Profile,
             where: {
               publicProfile: true,
-              lookingFor: { [Op.ne]: null },
               description: { [Op.ne]: null },
             }
           }
@@ -1126,7 +1141,7 @@ UpdateProfile: async (req, res) => {
         return (
           u.acceptedTerms === true &&
           hasValidProfileDetails &&
-          profileMatchesDesiredGenders(profile, desiredGenders) &&
+          profileMatchesSearch(profile, lookingForProfileType, lookingFor, lookingForCoupleType) &&
           hasPhotos &&
           hasValidDescription
         );
