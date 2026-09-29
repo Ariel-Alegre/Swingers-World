@@ -262,12 +262,14 @@ function initSocket(server) {
       if (!otherUserId) return;
       const roomId = [socket.userId, otherUserId].sort().join('-');
       socket.to(roomId).emit('typing', { typingUserId: socket.userId });
+      io.to(otherUserId.toString()).emit('conversationTyping', { typingUserId: socket.userId });
     });
 
     socket.on('stopTyping', ({ otherUserId }) => {
       if (!otherUserId) return;
       const roomId = [socket.userId, otherUserId].sort().join('-');
       socket.to(roomId).emit('stopTyping', { typingUserId: socket.userId });
+      io.to(otherUserId.toString()).emit('conversationStopTyping', { typingUserId: socket.userId });
     });
 
     socket.on('imageViewed', async ({ messageId, roomId }) => {

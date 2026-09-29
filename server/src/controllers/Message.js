@@ -196,11 +196,15 @@ const getConversations = async (req, res) => {
     });
 
     const conversationMap = new Map();
+    const unreadCounts = new Map();
 
     for (const m of messages) {
       const participantId = m.get('participantId');
       if (!conversationMap.has(participantId)) {
         conversationMap.set(participantId, m);
+      }
+      if (m.receiverId === userId && m.senderId !== userId && m.read === false) {
+        unreadCounts.set(m.senderId, (unreadCounts.get(m.senderId) || 0) + 1);
       }
     }
 
@@ -224,6 +228,7 @@ const getConversations = async (req, res) => {
         lastMessageAt: content.sentAt,
         isIncoming: content.senderId !== userId,
         read: content.senderId !== userId && content.read === true,
+        unreadCount: unreadCounts.get(user.id) || 0,
       };
     });
 
