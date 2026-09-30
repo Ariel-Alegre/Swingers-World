@@ -1147,11 +1147,12 @@ UpdateProfile: async (req, res) => {
           matchesProfileSearch(profile, lookingForProfileType, lookingFor, lookingForCoupleType)
         );
       });
-      const acceptedPhotoRequests = filteredUsers.length
-        ? await PhotoRequest.findAll({
+      const candidateIds = filteredUsers.map((candidate) => candidate.id);
+      const [acceptedPhotoRequests, pendingPhotoRequests] = filteredUsers.length
+        ? await Promise.all([PhotoRequest.findAll({
           where: {
             requesterId: user.id,
-            targetUserId: { [Op.in]: filteredUsers.map((candidate) => candidate.id) },
+            targetUserId: { [Op.in]: candidateIds },
             status: 'accepted',
             [Op.or]: [
               { permissionExpiresAt: null },
@@ -1159,12 +1160,23 @@ UpdateProfile: async (req, res) => {
             ],
           },
           attributes: ['targetUserId'],
-        })
-        : [];
+        }), PhotoRequest.findAll({
+          where: {
+            requesterId: user.id,
+            targetUserId: { [Op.in]: candidateIds },
+            status: 'pending',
+          },
+          attributes: ['targetUserId'],
+        })])
+        : [[], []];
       const accessibleProfileIds = new Set(acceptedPhotoRequests.map((request) => request.targetUserId));
+      const pendingProfileIds = new Set(pendingPhotoRequests.map((request) => request.targetUserId));
       const profilesWithAccess = filteredUsers.map((candidate) => ({
         ...serializeUser(candidate),
         canViewPrivatePhotos: accessibleProfileIds.has(candidate.id),
+        photoRequestStatus: pendingProfileIds.has(candidate.id)
+          ? 'pending'
+          : accessibleProfileIds.has(candidate.id) ? 'accepted' : null,
       }));
 
       for (let i = profilesWithAccess.length - 1; i > 0; i--) {
