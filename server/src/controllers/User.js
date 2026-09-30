@@ -52,6 +52,13 @@ function emitDiscoverProfilesChanged(userIds, reason) {
     // HTTP operations remain available while Socket.IO is starting or unavailable.
   }
 }
+
+function normalizeBooleanInput(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (value === true || value === 'true' || value === 1 || value === '1') return true;
+  if (value === false || value === 'false' || value === 0 || value === '0') return false;
+  return fallback;
+}
 const planPriceIds = {
   monthly: 'price_1ScFJdEe7RTtR8KatM8j0aRc',  
   'six_months': 'price_1ScFPtEe7RTtR8KaNYEc9CJT',
@@ -817,6 +824,8 @@ UpdateProfile: async (req, res) => {
 
     const normalizedGender = gender !== undefined ? normalizeGenderValue(gender) : user.Profile.gender;
     const normalizedLookingFor = lookingFor !== undefined ? normalizeLookingForValue(lookingFor) : user.Profile.lookingFor;
+    const normalizedPublicProfile = normalizeBooleanInput(publicProfile, user.Profile.publicProfile);
+    const normalizedPhotosVisible = normalizeBooleanInput(photosVisible, user.Profile.photosVisible);
     const preferencesProvided = lookingFor !== undefined || lookingForProfileType !== undefined || lookingForCoupleType !== undefined;
     const finalLookingForProfileType = lookingForProfileType !== undefined
       ? String(lookingForProfileType).trim()
@@ -900,8 +909,8 @@ UpdateProfile: async (req, res) => {
         longitude: lon,
         birthDate,
         gender: normalizedGender,
-        publicProfile,
-        photosVisible,
+        publicProfile: normalizedPublicProfile,
+        photosVisible: normalizedPhotosVisible,
         lookingFor: preferencesProvided
           ? finalLookingForProfileType === 'single' ? normalizedLookingFor : null
           : user.Profile.lookingFor,
