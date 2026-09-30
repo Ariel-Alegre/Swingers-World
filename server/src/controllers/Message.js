@@ -6,6 +6,7 @@ const { Expo } = require('expo-server-sdk');
 const { sendExpoPushNotifications } = require('../utils/pushNotifications');
 const { areUsersBlocked, getBlockedUserIdsForUser } = require('../utils/blocks');
 const { findObjectionableMatch } = require('../utils/safety');
+const { isProfileComplete } = require('../utils/profileCompletion');
 const {
   uploadFile,
   deleteStoredObject,
@@ -61,14 +62,22 @@ const createMessage = async (req, res) => {
   let imageUrl = null;
 
   try {
+    if (!senderId || !receiverId) {
+      return res.status(400).json({ error: 'senderId and receiverId are required' });
+    }
+
+    const sender = await User.findByPk(senderId, { include: [{ model: Profile }] });
+    if (!sender || !isProfileComplete(sender.Profile)) {
+      return res.status(403).json({
+        code: 'PROFILE_INCOMPLETE',
+        message: 'Complete your profile before sending messages.',
+      });
+    }
+
     if (req.file && req.file.buffer) {
       imageUrl = await uploadFile(req.file, 'chat-images');
     } else if (req.body.imageUrl) {
       imageUrl = normalizeStorageReference(req.body.imageUrl);
-    }
-
-    if (!senderId || !receiverId) {
-      return res.status(400).json({ error: 'senderId and receiverId are required' });
     }
 
     if (await areUsersBlocked(senderId, receiverId)) {
@@ -117,7 +126,6 @@ const createMessage = async (req, res) => {
 
 
     const receiver = await User.findByPk(receiverId);
-    const sender = await User.findByPk(senderId);
     const capitalize = (str) => {
       if (!str) return '';
       return str

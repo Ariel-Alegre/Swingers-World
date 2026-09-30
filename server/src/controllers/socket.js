@@ -1,11 +1,12 @@
 
-const { Message, User, PhotoRequest } = require('../db');
+const { Message, User, Profile, PhotoRequest } = require('../db');
 const { Op } = require('sequelize');
 const jwt = require('../utils/jwt');
 const { Expo } = require('expo-server-sdk');
 const { sendExpoPushNotifications } = require('../utils/pushNotifications');
 const { areUsersBlocked } = require('../utils/blocks');
 const { findObjectionableMatch } = require('../utils/safety');
+const { isProfileComplete } = require('../utils/profileCompletion');
 const { normalizeStorageReference, materializeMediaReferences, getConfiguredBaseUrl } = require('../utils/objectStorage');
 
 let io;
@@ -117,6 +118,15 @@ function initSocket(server) {
           socket.emit('errorMessage', { error: 'Invalid message sender.' });
           return;
         }
+
+        const sender = await User.findByPk(socket.userId, { include: [{ model: Profile }] });
+        if (!sender || !isProfileComplete(sender.Profile)) {
+          socket.emit('errorMessage', {
+            code: 'PROFILE_INCOMPLETE',
+            error: 'Complete your profile before sending messages.',
+          });
+          return;
+        }
         const safeRoomId = [socket.userId, receiverId].sort().join('-');
         if (await areUsersBlocked(senderId, receiverId)) {
           socket.emit('errorMessage', { error: 'You cannot send messages to this user.' });
@@ -142,7 +152,6 @@ function initSocket(server) {
         });
 
         const receiver = await User.findByPk(receiverId);
-        const sender = await User.findByPk(senderId);
 
         const capitalize = (str) => {
           if (!str) return '';

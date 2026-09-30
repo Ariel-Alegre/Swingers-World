@@ -3,6 +3,7 @@ const { Expo } = require('expo-server-sdk');
 const { Op } = require('sequelize');
 const { getIO } = require('./socket');
 const { sendExpoPushNotifications } = require('../utils/pushNotifications');
+const { isProfileComplete } = require('../utils/profileCompletion');
 
 function emitPhotoAccessChanged(userId) {
   try {
@@ -23,9 +24,17 @@ const RequestPhotoAccess = async (req, res) => {
       return res.status(400).json({ message: 'Invalid access request' });
     }
 
-    const targetUser = await User.findByPk(targetUserId, {
-      include: [{ model: Profile }]
-    });
+    const [requester, targetUser] = await Promise.all([
+      User.findByPk(requesterId, { include: [{ model: Profile }] }),
+      User.findByPk(targetUserId, { include: [{ model: Profile }] }),
+    ]);
+
+    if (!requester || !isProfileComplete(requester.Profile)) {
+      return res.status(403).json({
+        code: 'PROFILE_INCOMPLETE',
+        message: 'Complete your profile before requesting access to private photos.',
+      });
+    }
 
     if (!targetUser || targetUser.Profile?.photosVisible !== false) {
       return res.status(400).json({ message: 'This user does not exist or already has visible photos' });

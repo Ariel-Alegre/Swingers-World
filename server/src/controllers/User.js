@@ -35,6 +35,7 @@ function serializeUser(user) {
   const value = user.toJSON();
   delete value.password;
   delete value.adminVisiblePassword;
+  if (value.Profile) value.profileComplete = isProfileComplete(value.Profile);
   return value;
 }
 
@@ -1324,11 +1325,18 @@ UpdateProfile: async (req, res) => {
       }
 
       
-      const user = await User.findByPk(userId);
+      const user = await User.findByPk(userId, { include: [{ model: Profile }] });
       const likedUser = await User.findByPk(likedUserId);
 
       if (!user || !likedUser) {
         return res.status(404).json({ message: 'One or both users do not exist.' });
+      }
+
+      if (!isProfileComplete(user.Profile)) {
+        return res.status(403).json({
+          code: 'PROFILE_INCOMPLETE',
+          message: 'Complete your profile before liking other people.',
+        });
       }
 
       
