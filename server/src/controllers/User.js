@@ -9,6 +9,7 @@ const { findObjectionableMatch } = require('../utils/safety');
 const { getBlockedUserIdsForUser, areUsersBlocked } = require('../utils/blocks');
 const { uploadFile, deleteStoredObject, normalizeStorageReference } = require('../utils/objectStorage');
 const { matchesProfileSearch } = require('../utils/profileMatching');
+const { isProfileComplete } = require('../utils/profileCompletion');
 const { getIO } = require('./socket');
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -1138,12 +1139,8 @@ UpdateProfile: async (req, res) => {
       const filteredUsers = users.filter((candidate) => {
         const profile = candidate.Profile;
 
-        const hasValidProfileDetails = profile?.profileType === 'couple'
-          ? Boolean(profile.partnerFirstName?.trim() && profile.partnerLastName?.trim() && VALID_COUPLE_TYPES.includes(profile.coupleType))
-          : Boolean(normalizeGenderValue(profile?.gender));
-
         return (
-          hasValidProfileDetails &&
+          isProfileComplete(profile) &&
           matchesProfileSearch(profile, lookingForProfileType, lookingFor, lookingForCoupleType)
         );
       });

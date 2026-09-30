@@ -1,11 +1,13 @@
 const { Op } = require('sequelize');
-const { Notification } = require('../db');
+const { Notification, User, Profile } = require('../db');
+const { isProfileComplete } = require('../utils/profileCompletion');
 
 const visibleNotificationWhere = (userId) => ({
   userId,
   [Op.or]: [
     { type: 'photo_request' },
     { type: 'photo_request_accepted' },
+    { type: 'profile_incomplete' },
     {
       type: 'photo_response',
       description: { [Op.iLike]: '%granted access%' },
@@ -15,6 +17,22 @@ const visibleNotificationWhere = (userId) => ({
 
 const GetNotifications = async (req, res) => {
   try {
+    const user = await User.findByPk(req.userId, { include: [{ model: Profile }] });
+    if (user?.Profile && !isProfileComplete(user.Profile)) {
+      const existingReminder = await Notification.findOne({
+        where: { userId: req.userId, type: 'profile_incomplete' },
+      });
+      if (!existingReminder) {
+        await Notification.create({
+          userId: req.userId,
+          type: 'profile_incomplete',
+          description: 'Complete your profile so other people can discover you.',
+        });
+      }
+    } else {
+      await Notification.destroy({ where: { userId: req.userId, type: 'profile_incomplete' } });
+    }
+
     const notifications = await Notification.findAll({
       where: visibleNotificationWhere(req.userId),
       order: [['createdAt', 'DESC']],
