@@ -840,6 +840,8 @@ UpdateProfile: async (req, res) => {
     const finalPartnerFirstName = partnerFirstName !== undefined ? String(partnerFirstName).trim() : user.Profile.partnerFirstName;
     const finalPartnerLastName = partnerLastName !== undefined ? String(partnerLastName).trim() : user.Profile.partnerLastName;
     const finalCoupleType = coupleType !== undefined ? String(coupleType).trim() : user.Profile.coupleType;
+    const finalDescription = description !== undefined ? String(description).trim() : user.Profile.description;
+    const finalAddress = address !== undefined ? String(address).trim() : user.Profile.address;
 
     if (!finalDisplayName) {
       return res.status(400).json({ message: 'A display name is required.' });
@@ -860,7 +862,40 @@ UpdateProfile: async (req, res) => {
       return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'The preferred couple composition is required.' });
     }
 
-    
+    const existingPhotos = user.Profile.photos || [];
+    const pendingPhotoCount = req.files?.photos?.length || 0;
+
+    if (req.is('multipart/form-data')) {
+      const prospectiveProfile = {
+        ...user.Profile.toJSON(),
+        displayName: finalDisplayName,
+        description: finalDescription,
+        address: finalAddress,
+        gender: user.Profile.profileType === 'single' ? normalizedGender : null,
+        partnerFirstName: user.Profile.profileType === 'couple' ? finalPartnerFirstName : null,
+        partnerLastName: user.Profile.profileType === 'couple' ? finalPartnerLastName : null,
+        coupleType: user.Profile.profileType === 'couple' ? finalCoupleType : null,
+        lookingForProfileType: preferencesProvided ? finalLookingForProfileType : user.Profile.lookingForProfileType,
+        lookingFor: preferencesProvided && finalLookingForProfileType === 'single'
+          ? normalizedLookingFor
+          : preferencesProvided ? null : user.Profile.lookingFor,
+        lookingForCoupleType: preferencesProvided && finalLookingForProfileType === 'couple'
+          ? finalLookingForCoupleType
+          : preferencesProvided ? null : user.Profile.lookingForCoupleType,
+        photos: [
+          ...existingPhotos,
+          ...Array.from({ length: pendingPhotoCount }, () => ({ url: 'pending-upload' })),
+        ],
+      };
+
+      if (!isProfileComplete(prospectiveProfile)) {
+        return res.status(400).json({
+          code: 'PROFILE_INCOMPLETE_FIELDS',
+          message: 'Complete every required profile field and upload at least one photo.',
+        });
+      }
+    }
+
     let newPhotos = [];
     if (req.files && req.files['photos']) {
       const uploadPromises = req.files['photos'].map(async (file) => ({
@@ -869,12 +904,6 @@ UpdateProfile: async (req, res) => {
 
       newPhotos = await Promise.all(uploadPromises);
     }
-
-    
-    
-    const existingPhotos = user.Profile.photos || [];
-    
-    
     
     const finalPhotos = [...existingPhotos, ...newPhotos].slice(0, 9);
 
@@ -895,8 +924,8 @@ UpdateProfile: async (req, res) => {
     
     await Profile.update(
       {
-        description,
-        address,
+        description: finalDescription,
+        address: finalAddress,
         displayName: finalDisplayName,
         partnerFirstName: user.Profile.profileType === 'couple' ? finalPartnerFirstName : null,
         partnerLastName: user.Profile.profileType === 'couple' ? finalPartnerLastName : null,
@@ -957,11 +986,21 @@ UpdateProfile: async (req, res) => {
         return res.status(400).json({ message: 'Photo URL is required.' });
       }
 
+      const currentPhotos = user.Profile.photos || [];
       const url = normalizeStorageReference(requestedUrl);
-      await deleteStoredObject(url);
+      const ownedPhoto = currentPhotos.find((photo) => normalizeStorageReference(photo?.url) === url);
+      if (!ownedPhoto) {
+        return res.status(404).json({ code: 'NOT_FOUND', message: 'Photo not found.' });
+      }
+      const updatedPhotos = currentPhotos.filter((photo) => normalizeStorageReference(photo?.url) !== url);
+      if (!updatedPhotos.some((photo) => Boolean(normalizeStorageReference(photo?.url)))) {
+        return res.status(400).json({
+          code: 'LAST_PROFILE_PHOTO_REQUIRED',
+          message: 'At least one profile photo is required.',
+        });
+      }
 
-      
-      const updatedPhotos = (user.Profile.photos || []).filter(f => f.url !== url);
+      await deleteStoredObject(url);
 
       
       await Profile.update({ photos: updatedPhotos }, { where: { id: user.Profile.id } });
