@@ -1326,7 +1326,27 @@ UpdateProfile: async (req, res) => {
         }],
       });
 
-      return res.status(200).json(likes.map(l => l.likedUser));
+      const likedUsers = likes.map((like) => like.likedUser).filter(Boolean);
+      const acceptedPhotoRequests = likedUsers.length
+        ? await PhotoRequest.findAll({
+          where: {
+            requesterId: userId,
+            targetUserId: { [Op.in]: likedUsers.map((likedUser) => likedUser.id) },
+            status: 'accepted',
+            [Op.or]: [
+              { permissionExpiresAt: null },
+              { permissionExpiresAt: { [Op.gt]: new Date() } },
+            ],
+          },
+          attributes: ['targetUserId'],
+        })
+        : [];
+      const accessibleProfileIds = new Set(acceptedPhotoRequests.map((request) => request.targetUserId));
+
+      return res.status(200).json(likedUsers.map((likedUser) => ({
+        ...serializeUser(likedUser),
+        canViewPrivatePhotos: accessibleProfileIds.has(likedUser.id),
+      })));
     } catch (error) {
       console.error('❌ Failed to retrieve likes:', error);
       return res.status(500).json({ message: 'Server error', error: error.message });
@@ -1517,6 +1537,34 @@ UpdateProfile: async (req, res) => {
       console.error('❌ Failed to block user:', error);
       const status = error.status || 500;
       return res.status(status).json({ message: error.message || 'Internal server error' });
+    }
+  },
+
+  GetBlockedUsers: async (req, res) => {
+    try {
+      const blockerId = getAuthenticatedUserId(req);
+      const blocks = await UserBlock.findAll({
+        where: { blockerId, status: 'active' },
+        include: [{
+          model: User,
+          as: 'blockedUser',
+          attributes: ['id', 'firstName', 'lastName', 'backgroundColor'],
+          include: [{ model: Profile }],
+        }],
+        order: [['updatedAt', 'DESC']],
+      });
+
+      const blockedUsers = blocks
+        .filter((block) => block.blockedUser)
+        .map((block) => ({
+          ...serializeUser(block.blockedUser),
+          blockedAt: block.updatedAt,
+        }));
+
+      return res.status(200).json(blockedUsers);
+    } catch (error) {
+      console.error('Failed to retrieve blocked users:', error);
+      return res.status(error.status || 500).json({ message: error.message || 'Internal server error' });
     }
   }
 

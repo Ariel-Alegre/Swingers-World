@@ -48,4 +48,18 @@ const MarkNotificationsAsRead = async (req, res) => {
   }
 };
 
-module.exports = { GetNotifications, MarkNotificationsAsRead };
+const MarkNotificationAsRead = async (req, res) => {
+  try {
+    const [updatedCount] = await Notification.update(
+      { read: true },
+      { where: { id: req.params.id, userId: req.userId } },
+    );
+    if (!updatedCount) return res.status(404).json({ message: 'Notification not found' });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to mark notification as read:', error);
+    return res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
+module.exports = { GetNotifications, MarkNotificationsAsRead, MarkNotificationAsRead };
