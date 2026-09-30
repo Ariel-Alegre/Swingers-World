@@ -9,6 +9,7 @@ const { findObjectionableMatch } = require('../utils/safety');
 const { getBlockedUserIdsForUser, areUsersBlocked } = require('../utils/blocks');
 const { uploadFile, deleteStoredObject, normalizeStorageReference } = require('../utils/objectStorage');
 const { matchesProfileSearch } = require('../utils/profileMatching');
+const { getIO } = require('./socket');
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -34,6 +35,22 @@ function serializeUser(user) {
   delete value.password;
   delete value.adminVisiblePassword;
   return value;
+}
+
+function emitDiscoverProfilesChanged(userIds, reason) {
+  try {
+    const realtime = getIO();
+    const payload = { reason, changedAt: new Date().toISOString() };
+    if (Array.isArray(userIds) && userIds.length) {
+      for (const userId of new Set(userIds.filter(Boolean))) {
+        realtime.to(userId.toString()).emit('discoverProfilesChanged', payload);
+      }
+      return;
+    }
+    realtime.emit('discoverProfilesChanged', payload);
+  } catch {
+    // HTTP operations remain available while Socket.IO is starting or unavailable.
+  }
 }
 const planPriceIds = {
   monthly: 'price_1ScFJdEe7RTtR8KatM8j0aRc',  
@@ -590,6 +607,7 @@ webhookRevenueCat: async (req, res) => {
 
 
 
+      emitDiscoverProfilesChanged(null, 'profile_created');
       return res.status(201).json({ user: serializeUser(newUser), profile });
     } catch (error) {
       console.error("❌ Internal server error:", error);
@@ -898,6 +916,7 @@ UpdateProfile: async (req, res) => {
       { where: { id: user.Profile.id } }
     );
 
+    emitDiscoverProfilesChanged(null, 'profile_updated');
     return res.status(200).json({ message: 'Profile updated successfully.' });
   } catch (error) {
     console.error('❌ Failed to update profile:', error);
@@ -935,6 +954,7 @@ UpdateProfile: async (req, res) => {
       
       await Profile.update({ photos: updatedPhotos }, { where: { id: user.Profile.id } });
 
+      emitDiscoverProfilesChanged(null, 'profile_photo_deleted');
       return res.status(200).json({ message: 'Photo deleted successfully.' });
     } catch (error) {
       console.error('❌ Failed to delete photo:', error);
@@ -1530,6 +1550,7 @@ UpdateProfile: async (req, res) => {
         source,
       });
 
+      emitDiscoverProfilesChanged([blockerId, blockedUserId], 'user_blocked');
       return res.status(200).json({
         message: 'User blocked successfully and removed from your feed.',
       });
@@ -1564,6 +1585,32 @@ UpdateProfile: async (req, res) => {
       return res.status(200).json(blockedUsers);
     } catch (error) {
       console.error('Failed to retrieve blocked users:', error);
+      return res.status(error.status || 500).json({ message: error.message || 'Internal server error' });
+    }
+  },
+
+  UnblockUser: async (req, res) => {
+    try {
+      const blockerId = getAuthenticatedUserId(req);
+      const [updatedCount] = await UserBlock.update(
+        { status: 'inactive' },
+        {
+          where: {
+            blockerId,
+            blockedUserId: req.params.id,
+            status: 'active',
+          },
+        },
+      );
+
+      if (!updatedCount) {
+        return res.status(404).json({ message: 'Active block not found.' });
+      }
+
+      emitDiscoverProfilesChanged([blockerId, req.params.id], 'user_unblocked');
+      return res.status(200).json({ message: 'User unblocked successfully.' });
+    } catch (error) {
+      console.error('Failed to unblock user:', error);
       return res.status(error.status || 500).json({ message: error.message || 'Internal server error' });
     }
   }

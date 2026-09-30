@@ -18,6 +18,7 @@ const {
   ReportUser,
   BlockUser,
   GetBlockedUsers,
+  UnblockUser,
 } = require('../controllers/User');
 const { SavePushToken } = require('../controllers/PushToken');
 const authenticateToken = require('../middleware/authenticateToken');
@@ -44,6 +45,7 @@ router.delete('/likes/:id', authenticateToken, DeleteLike);
 router.post('/reports', authenticateToken, ReportUser);
 router.get('/blocks', authenticateToken, GetBlockedUsers);
 router.post('/blocks', authenticateToken, BlockUser);
+router.delete('/blocks/:id', authenticateToken, UnblockUser);
 router.post('/push-tokens', authenticateToken, SavePushToken);
 
 module.exports = router;

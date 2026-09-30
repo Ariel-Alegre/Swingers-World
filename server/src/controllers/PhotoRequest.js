@@ -3,6 +3,17 @@ const { Expo } = require('expo-server-sdk');
 const { Op } = require('sequelize');
 const { getIO } = require('./socket');
 const { sendExpoPushNotifications } = require('../utils/pushNotifications');
+
+function emitPhotoAccessChanged(userId) {
+  try {
+    getIO().to(userId.toString()).emit('discoverProfilesChanged', {
+      reason: 'photo_access_changed',
+      changedAt: new Date().toISOString(),
+    });
+  } catch {
+    // The HTTP response must not fail if the realtime transport is unavailable.
+  }
+}
 const RequestPhotoAccess = async (req, res) => {
   const requesterId = req.userId || req.body.requesterId;
   const { targetUserId } = req.body;
@@ -177,6 +188,7 @@ function capitalize(text) {
 
     if (decision === "rejected") {
       await photoRequest.destroy();
+      emitPhotoAccessChanged(photoRequest.requesterId);
       notificationTitle = `${capitalize(targetUser.firstName)} ${capitalize(targetUser.lastName)}`;
       notificationBody = "Your request to view photos was rejected.";
 
@@ -219,6 +231,7 @@ function capitalize(text) {
       photoRequest.permissionExpiresAt = null;
     }
     await photoRequest.save();
+    emitPhotoAccessChanged(photoRequest.requesterId);
 
     if (decision === "accepted") {
       notificationTitle = `${capitalize(targetUser.firstName)} ${capitalize(targetUser.lastName)}`;
