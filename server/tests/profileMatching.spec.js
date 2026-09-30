@@ -49,4 +49,19 @@ describe('Discover profile matching', () => {
       'all',
     )).to.equal(true);
   });
+
+  it('shows individual profiles and couples when both profile types are selected', () => {
+    expect(matchesProfileSearch(
+      { profileType: 'single', gender: 'Female' },
+      'both',
+      null,
+      null,
+    )).to.equal(true);
+    expect(matchesProfileSearch(
+      { profileType: 'couple', coupleType: 'two_men' },
+      'both',
+      null,
+      null,
+    )).to.equal(true);
+  });
 });

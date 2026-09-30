@@ -6,6 +6,10 @@ function normalizeCandidateGender(value) {
 }
 
 function matchesProfileSearch(profile, lookingForProfileType, lookingFor, lookingForCoupleType) {
+  if (lookingForProfileType === 'both') {
+    return profile?.profileType === 'single' || profile?.profileType === 'couple';
+  }
+
   if (lookingForProfileType === 'couple') {
     return profile?.profileType === 'couple'
       && (lookingForCoupleType === 'all' || profile.coupleType === lookingForCoupleType);

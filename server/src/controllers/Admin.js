@@ -274,7 +274,7 @@ module.exports = {
       if (finalProfileType === 'couple' && (!finalPartnerFirstName || !finalPartnerLastName || !['woman_man', 'two_women', 'two_men', 'other'].includes(finalCoupleType))) {
         return res.status(400).json({ message: 'Partner first name, last name, and couple composition are required.' });
       }
-      if (!['single', 'couple'].includes(finalLookingForProfileType)) {
+      if (!['single', 'couple', 'both'].includes(finalLookingForProfileType)) {
         return res.status(400).json({ message: 'The preferred profile type is invalid.' });
       }
       if (finalLookingForProfileType === 'couple' && !['woman_man', 'two_women', 'two_men', 'other'].includes(finalLookingForCoupleType)) {

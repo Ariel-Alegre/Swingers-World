@@ -53,12 +53,12 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: false,
       defaultValue: 'single',
-      validate: { isIn: [['single', 'couple']] },
+      validate: { isIn: [['single', 'couple', 'both']] },
     },
     lookingForCoupleType: {
       type: DataTypes.STRING,
       allowNull: true,
-      validate: { isIn: [['woman_man', 'two_women', 'two_men', 'other']] },
+      validate: { isIn: [['woman_man', 'two_women', 'two_men', 'other', 'all']] },
     },
     birthDate : {
       type: DataTypes.STRING,

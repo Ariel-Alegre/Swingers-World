@@ -65,6 +65,7 @@ const planPriceIds = {
   'annual': 'price_1ScFRCEe7RTtR8KaSyN44OoN',
 };
 const VALID_PROFILE_TYPES = ['single', 'couple'];
+const VALID_LOOKING_FOR_PROFILE_TYPES = ['single', 'couple', 'both'];
 const VALID_COUPLE_TYPES = ['woman_man', 'two_women', 'two_men', 'other'];
 const VALID_LOOKING_FOR_COUPLE_TYPES = [...VALID_COUPLE_TYPES, 'all'];
 
@@ -847,7 +848,7 @@ UpdateProfile: async (req, res) => {
     if (user.Profile.profileType === 'couple' && (!finalPartnerFirstName || !finalPartnerLastName || !VALID_COUPLE_TYPES.includes(finalCoupleType))) {
       return res.status(400).json({ message: 'Partner first name, last name, and couple composition are required.' });
     }
-    if (preferencesProvided && !VALID_PROFILE_TYPES.includes(finalLookingForProfileType)) {
+    if (preferencesProvided && !VALID_LOOKING_FOR_PROFILE_TYPES.includes(finalLookingForProfileType)) {
       return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'The preferred profile type is invalid.' });
     }
     if (preferencesProvided && finalLookingForProfileType === 'single' && !normalizedLookingFor) {
