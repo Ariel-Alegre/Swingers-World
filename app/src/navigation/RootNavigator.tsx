@@ -19,6 +19,7 @@ import { AccountScreen } from '../screens/AccountScreen';
 import { PublicProfileScreen } from '../screens/PublicProfileScreen';
 import { EditProfileScreen } from '../screens/EditProfileScreen';
 import { ChatDetailScreen } from '../screens/ChatDetailScreen';
+import { ArchivedChatsScreen } from '../screens/ArchivedChatsScreen';
 import { LegalScreen } from '../screens/LegalScreen';
 import { LocationSync } from '../components/LocationSync';
 import { RealtimeConnection } from '../components/RealtimeConnection';
@@ -152,6 +153,7 @@ export function RootNavigator() {
         <RootStack.Screen name="SentPhotoRequests" component={SentPhotoRequestsScreen} options={{ title: t('sentRequests.title') }} />
         <RootStack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: t('nav.editProfile') }} />
         <RootStack.Screen name="ChatDetail" component={ChatDetailScreen} options={{ headerShown: false }} />
+        <RootStack.Screen name="ArchivedChats" component={ArchivedChatsScreen} options={{ title: t('chats.archivedTitle') }} />
         <RootStack.Screen name="Legal" component={LegalScreen} options={{ title: t('nav.legal') }} />
       </RootStack.Navigator>
     </>

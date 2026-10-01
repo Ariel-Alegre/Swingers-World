@@ -169,6 +169,7 @@ const createMessage = async (req, res) => {
 
 const getConversations = async (req, res) => {
   const { userId } = req.query;
+  const includeArchived = req.query.archived === 'true';
   if (!userId) return res.status(400).json({ error: 'userId is required' });
   if (req.userId !== userId) return res.status(403).json({ error: 'You cannot access these conversations' });
 
@@ -181,8 +182,8 @@ const getConversations = async (req, res) => {
           { [Op.or]: [{ senderId: userId }, { receiverId: userId }] },
           {
             [Op.or]: [
-              { senderId: userId, senderDeleted: false, senderArchived: false },
-              { receiverId: userId, receiverDeleted: false, receiverArchived: false },
+              { senderId: userId, senderDeleted: false },
+              { receiverId: userId, receiverDeleted: false },
             ],
           },
           {
@@ -200,6 +201,8 @@ const getConversations = async (req, res) => {
         'senderId',
         'receiverId',
         'read',
+        'senderArchived',
+        'receiverArchived',
         [
           Sequelize.literal(
             `CASE WHEN "senderId" = '${userId}' THEN "receiverId" ELSE "senderId" END`
@@ -210,18 +213,28 @@ const getConversations = async (req, res) => {
       order: [['sentAt', 'DESC']],
     });
 
-    const conversationMap = new Map();
+    const latestConversationMap = new Map();
     const unreadCounts = new Map();
 
     for (const m of messages) {
       const participantId = m.get('participantId');
-      if (!conversationMap.has(participantId)) {
-        conversationMap.set(participantId, m);
+      if (!latestConversationMap.has(participantId)) {
+        latestConversationMap.set(participantId, m);
       }
-      if (m.receiverId === userId && m.senderId !== userId && m.read === false) {
+      const archivedForUser = m.senderId === userId ? m.senderArchived : m.receiverArchived;
+      if (m.receiverId === userId && m.senderId !== userId && m.read === false && Boolean(archivedForUser) === includeArchived) {
         unreadCounts.set(m.senderId, (unreadCounts.get(m.senderId) || 0) + 1);
       }
     }
+
+    const conversationMap = new Map(
+      Array.from(latestConversationMap.entries()).filter(([, message]) => {
+        const archivedForUser = message.senderId === userId
+          ? message.senderArchived
+          : message.receiverArchived;
+        return Boolean(archivedForUser) === includeArchived;
+      }),
+    );
 
     const participantIds = Array.from(conversationMap.keys());
 
@@ -232,7 +245,10 @@ const getConversations = async (req, res) => {
       include: [{ model: Profile }],
     });
 
-    const result = participants.map((user) => {
+    const participantsById = new Map(participants.map((participant) => [participant.id, participant]));
+    const result = participantIds.map((participantId) => {
+      const user = participantsById.get(participantId);
+      if (!user) return null;
       const content = conversationMap.get(user.id);
       return {
         participantId: user.id,
@@ -245,7 +261,7 @@ const getConversations = async (req, res) => {
         read: content.senderId !== userId && content.read === true,
         unreadCount: unreadCounts.get(user.id) || 0,
       };
-    });
+    }).filter(Boolean);
 
     res.json(result);
   } catch (error) {
@@ -395,6 +411,41 @@ const archiveConversation = async (req, res) => {
   }
 };
 
+const unarchiveConversation = async (req, res) => {
+  const userId = req.userId;
+  const { participantId } = req.params;
+  const validParticipantId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(participantId || '');
+
+  if (!validParticipantId || participantId === userId) {
+    return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'A valid participant is required.' });
+  }
+
+  try {
+    const [[outgoingCount], [incomingCount]] = await Promise.all([
+      Message.update(
+        { senderArchived: false },
+        { where: { senderId: userId, receiverId: participantId, senderDeleted: false, senderArchived: true } },
+      ),
+      Message.update(
+        { receiverArchived: false },
+        { where: { senderId: participantId, receiverId: userId, receiverDeleted: false, receiverArchived: true } },
+      ),
+    ]);
+
+    const unreadCount = await Message.count({
+      where: { receiverId: userId, read: false, receiverDeleted: false, receiverArchived: false },
+    });
+    const io = getIO();
+    io.to(userId.toString()).emit('conversationUnarchived', { participantId });
+    io.to(userId.toString()).emit('unreadMessages', { count: unreadCount });
+
+    return res.json({ success: true, unarchivedMessages: outgoingCount + incomingCount });
+  } catch (error) {
+    console.error('Failed to unarchive conversation:', error);
+    return res.status(500).json({ code: 'INTERNAL_ERROR', message: 'Failed to unarchive conversation.' });
+  }
+};
+
 
 
 const markImageAsViewed = async (req, res) => {
@@ -477,4 +528,5 @@ module.exports = {
   deleteMessage,
   deleteConversation,
   archiveConversation,
+  unarchiveConversation,
 };

@@ -22,5 +22,6 @@ export type RootStackParamList = {
   SentPhotoRequests: undefined;
   EditProfile: undefined;
   ChatDetail: { userId: string; name: string; avatar?: string | null; initialMessage?: string };
+  ArchivedChats: undefined;
   Legal: { document: 'terms' | 'privacy' };
 };

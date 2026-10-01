@@ -1,47 +1,40 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, type CompositeNavigationProp } from '@react-navigation/native';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Screen } from '../components/Screen';
-import { Header } from '../components/Header';
 import { EmptyState } from '../components/EmptyState';
 import { UserAvatar } from '../components/UserAvatar';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { api, getErrorMessage } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { colors, radius, spacing } from '../theme/colors';
 import type { Conversation } from '../types/api';
-import type { MainTabParamList, RootStackParamList } from '../navigation/types';
-import { useLanguage } from '../context/LanguageContext';
+import type { RootStackParamList } from '../navigation/types';
 
-type Navigation = CompositeNavigationProp<BottomTabNavigationProp<MainTabParamList, 'Chats'>, NativeStackNavigationProp<RootStackParamList>>;
+type Props = NativeStackScreenProps<RootStackParamList, 'ArchivedChats'>;
 
-export function ChatsScreen({ navigation }: { navigation: Navigation }) {
+export function ArchivedChatsScreen({ navigation }: Props) {
   const { user } = useAuth();
   const { t } = useLanguage();
   const [items, setItems] = useState<Conversation[]>([]);
-  const [archivedCount, setArchivedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [processingParticipantId, setProcessingParticipantId] = useState<string | null>(null);
-  const [typingUserIds, setTypingUserIds] = useState<Set<string>>(() => new Set());
-  const typingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const load = useCallback(async (refresh = false, silent = false) => {
     if (!user) return;
     if (refresh) setRefreshing(true);
     else if (!silent) setLoading(true);
     try {
-      const [{ data }, { data: archivedData }] = await Promise.all([
-        api.get<Conversation[]>('/conversations', { params: { userId: user.id } }),
-        api.get<Conversation[]>('/conversations', { params: { userId: user.id, archived: true } }),
-      ]);
+      const { data } = await api.get<Conversation[]>('/conversations', {
+        params: { userId: user.id, archived: true },
+      });
       setItems(Array.isArray(data) ? data : []);
-      setArchivedCount(Array.isArray(archivedData) ? archivedData.length : 0);
       setError('');
     } catch (value) {
       setError(getErrorMessage(value, t('error.generic'), t));
@@ -49,9 +42,48 @@ export function ChatsScreen({ navigation }: { navigation: Navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user, t]);
+  }, [t, user]);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
+
+  useEffect(() => {
+    let active = true;
+    let activeSocket: Awaited<ReturnType<typeof getSocket>> | null = null;
+    const refreshChats = () => void load(false, true);
+
+    void getSocket().then((socket) => {
+      if (!active) return;
+      activeSocket = socket;
+      socket.on('conversationArchived', refreshChats);
+      socket.on('conversationUnarchived', refreshChats);
+      socket.on('conversationDeleted', refreshChats);
+      socket.on('unreadMessages', refreshChats);
+      socket.on('messagesRead', refreshChats);
+    }).catch(() => undefined);
+
+    return () => {
+      active = false;
+      activeSocket?.off('conversationArchived', refreshChats);
+      activeSocket?.off('conversationUnarchived', refreshChats);
+      activeSocket?.off('conversationDeleted', refreshChats);
+      activeSocket?.off('unreadMessages', refreshChats);
+      activeSocket?.off('messagesRead', refreshChats);
+    };
+  }, [load]);
+
+  const unarchive = async (conversation: Conversation) => {
+    setSelectedConversation(null);
+    setProcessingParticipantId(conversation.participantId);
+    try {
+      await api.patch(`/conversations/${conversation.participantId}/unarchive`);
+      setItems((current) => current.filter((item) => item.participantId !== conversation.participantId));
+      setError('');
+    } catch (value) {
+      Alert.alert(t('chats.actions'), getErrorMessage(value, t('chats.unarchiveFailed'), t));
+    } finally {
+      setProcessingParticipantId(null);
+    }
+  };
 
   const confirmDelete = (conversation: Conversation, name: string) => {
     setSelectedConversation(null);
@@ -80,77 +112,8 @@ export function ChatsScreen({ navigation }: { navigation: Navigation }) {
     );
   };
 
-  const archiveConversation = async (conversation: Conversation) => {
-    setSelectedConversation(null);
-    setProcessingParticipantId(conversation.participantId);
-    try {
-      await api.patch(`/conversations/${conversation.participantId}/archive`);
-      setItems((current) => current.filter((item) => item.participantId !== conversation.participantId));
-      setError('');
-      void load(false, true);
-    } catch (value) {
-      Alert.alert(t('chats.actions'), getErrorMessage(value, t('chats.archiveFailed'), t));
-    } finally {
-      setProcessingParticipantId(null);
-    }
-  };
-
-  useEffect(() => {
-    if (!user) return undefined;
-    let active = true;
-    let activeSocket: Awaited<ReturnType<typeof getSocket>> | null = null;
-
-    const clearTyping = (typingUserId: string) => {
-      const timer = typingTimers.current.get(typingUserId);
-      if (timer) clearTimeout(timer);
-      typingTimers.current.delete(typingUserId);
-      setTypingUserIds((current) => {
-        const next = new Set(current);
-        next.delete(typingUserId);
-        return next;
-      });
-    };
-    const showTyping = ({ typingUserId }: { typingUserId: string }) => {
-      setTypingUserIds((current) => new Set(current).add(typingUserId));
-      const currentTimer = typingTimers.current.get(typingUserId);
-      if (currentTimer) clearTimeout(currentTimer);
-      typingTimers.current.set(typingUserId, setTimeout(() => clearTyping(typingUserId), 2200));
-    };
-    const stopTyping = ({ typingUserId }: { typingUserId: string }) => clearTyping(typingUserId);
-    const refreshConversations = () => void load(false, true);
-    const removeConversation = ({ participantId }: { participantId: string }) => {
-      setItems((current) => current.filter((item) => item.participantId !== participantId));
-    };
-
-    void getSocket().then((socket) => {
-      if (!active) return;
-      activeSocket = socket;
-      socket.on('conversationTyping', showTyping);
-      socket.on('conversationStopTyping', stopTyping);
-      socket.on('unreadMessages', refreshConversations);
-      socket.on('messagesRead', refreshConversations);
-      socket.on('conversationDeleted', removeConversation);
-      socket.on('conversationArchived', refreshConversations);
-      socket.on('conversationUnarchived', refreshConversations);
-    }).catch(() => undefined);
-
-    return () => {
-      active = false;
-      activeSocket?.off('conversationTyping', showTyping);
-      activeSocket?.off('conversationStopTyping', stopTyping);
-      activeSocket?.off('unreadMessages', refreshConversations);
-      activeSocket?.off('messagesRead', refreshConversations);
-      activeSocket?.off('conversationDeleted', removeConversation);
-      activeSocket?.off('conversationArchived', refreshConversations);
-      activeSocket?.off('conversationUnarchived', refreshConversations);
-      typingTimers.current.forEach((timer) => clearTimeout(timer));
-      typingTimers.current.clear();
-    };
-  }, [load, user]);
-
   return (
     <Screen>
-      <Header title={t('chats.title')} subtitle={t('chats.subtitle')} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator color={colors.gold} /> : (
         <FlatList
@@ -158,18 +121,9 @@ export function ChatsScreen({ navigation }: { navigation: Navigation }) {
           keyExtractor={(item) => item.participantId}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => void load(true)} tintColor={colors.gold} />}
           contentContainerStyle={!items.length ? styles.emptyList : styles.list}
-          ListHeaderComponent={archivedCount > 0 ? (
-            <Pressable onPress={() => navigation.navigate('ArchivedChats')} style={({ pressed }) => [styles.archivedRow, pressed && styles.rowPressed]}>
-              <View style={styles.archivedIcon}><Ionicons name="archive-outline" size={22} color={colors.gold} /></View>
-              <Text style={styles.archivedText}>{t('chats.archived')}</Text>
-              <Text style={styles.archivedCount}>{archivedCount}</Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
-            </Pressable>
-          ) : null}
-          ListEmptyComponent={<EmptyState icon="chatbubbles-outline" title={t('chats.emptyTitle')} message={t('chats.emptyMessage')} />}
+          ListEmptyComponent={<EmptyState icon="archive-outline" title={t('chats.archivedTitle')} message={t('chats.archivedEmpty')} />}
           renderItem={({ item }) => {
             const name = `${item.firstName} ${item.lastName}`.trim();
-            const typing = typingUserIds.has(item.participantId);
             return (
               <Pressable
                 disabled={processingParticipantId === item.participantId}
@@ -180,8 +134,11 @@ export function ChatsScreen({ navigation }: { navigation: Navigation }) {
               >
                 <UserAvatar uri={item.avatar} name={name} size={58} />
                 <View style={styles.copy}>
-                  <View style={styles.nameRow}><Text style={styles.name}>{name}</Text>{(item.unreadCount || 0) > 0 ? <View style={styles.dot} /> : null}</View>
-                  <Text numberOfLines={1} style={[styles.message, (item.unreadCount || 0) > 0 && styles.unreadMessage, typing && styles.typing]}>{typing ? t('chat.typing') : item.lastMessage || t('common.image')}</Text>
+                  <View style={styles.nameRow}>
+                    <Text style={styles.name}>{name}</Text>
+                    {(item.unreadCount || 0) > 0 ? <View style={styles.dot} /> : null}
+                  </View>
+                  <Text numberOfLines={1} style={[styles.message, (item.unreadCount || 0) > 0 && styles.unreadMessage]}>{item.lastMessage || t('common.image')}</Text>
                 </View>
                 {processingParticipantId === item.participantId ? <ActivityIndicator size="small" color={colors.gold} /> : null}
               </Pressable>
@@ -189,21 +146,17 @@ export function ChatsScreen({ navigation }: { navigation: Navigation }) {
           }}
         />
       )}
-      <Modal
-        animationType="fade"
-        transparent
-        visible={Boolean(selectedConversation)}
-        onRequestClose={() => setSelectedConversation(null)}
-      >
+
+      <Modal animationType="fade" transparent visible={Boolean(selectedConversation)} onRequestClose={() => setSelectedConversation(null)}>
         <View style={styles.modalOverlay}>
           <Pressable accessibilityRole="button" accessibilityLabel={t('common.cancel')} onPress={() => setSelectedConversation(null)} style={styles.modalBackdrop} />
           {selectedConversation ? (
             <View style={styles.actionMenu}>
               <Text style={styles.actionTitle}>{t('chats.actions')}</Text>
               <Text numberOfLines={1} style={styles.actionName}>{`${selectedConversation.firstName} ${selectedConversation.lastName}`.trim()}</Text>
-              <Pressable onPress={() => void archiveConversation(selectedConversation)} style={({ pressed }) => [styles.actionRow, pressed && styles.actionPressed]}>
-                <View style={styles.actionIcon}><Ionicons name="archive-outline" size={22} color={colors.gold} /></View>
-                <Text style={styles.actionText}>{t('chats.archive')}</Text>
+              <Pressable onPress={() => void unarchive(selectedConversation)} style={({ pressed }) => [styles.actionRow, pressed && styles.actionPressed]}>
+                <View style={styles.actionIcon}><Ionicons name="arrow-up-circle-outline" size={23} color={colors.gold} /></View>
+                <Text style={styles.actionText}>{t('chats.unarchive')}</Text>
               </Pressable>
               <Pressable onPress={() => confirmDelete(selectedConversation, `${selectedConversation.firstName} ${selectedConversation.lastName}`.trim())} style={({ pressed }) => [styles.actionRow, pressed && styles.actionPressed]}>
                 <View style={[styles.actionIcon, styles.dangerIcon]}><Ionicons name="trash-outline" size={22} color={colors.danger} /></View>
@@ -226,16 +179,11 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   rowPressed: { backgroundColor: colors.surfaceRaised, borderColor: colors.gold },
   rowProcessing: { opacity: 0.55 },
-  archivedRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, minHeight: 58, paddingHorizontal: spacing.md, marginBottom: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  archivedIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(234, 183, 106, 0.10)' },
-  archivedText: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '800' },
-  archivedCount: { color: colors.gold, fontSize: 14, fontWeight: '900' },
   copy: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   name: { color: colors.text, fontSize: 17, fontWeight: '800' },
   message: { color: colors.textMuted, marginTop: 4 },
   unreadMessage: { color: colors.text, fontWeight: '800' },
-  typing: { color: colors.success, fontWeight: '700' },
   dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.primary },
   error: { color: colors.danger, marginBottom: spacing.md },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', padding: spacing.md, paddingBottom: spacing.xl, backgroundColor: 'rgba(0, 0, 0, 0.68)' },

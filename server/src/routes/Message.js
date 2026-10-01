@@ -10,6 +10,7 @@ const {
   deleteMessage,
   deleteConversation,
   archiveConversation,
+  unarchiveConversation,
   markImageAsViewed,
 } = require('../controllers/Message');
 
@@ -20,6 +21,7 @@ router.get('/messages', authenticateToken, getMessages);
 router.get('/conversations', authenticateToken, getConversations);
 router.delete('/conversations/:participantId', authenticateToken, deleteConversation);
 router.patch('/conversations/:participantId/archive', authenticateToken, archiveConversation);
+router.patch('/conversations/:participantId/unarchive', authenticateToken, unarchiveConversation);
 router.post('/messages/read', authenticateToken, markAsRead);
 router.get('/unread-message-counts', authenticateToken, getUnreadMessageCounts);
 router.post('/messages/delete', authenticateToken, deleteMessage);
