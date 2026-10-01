@@ -1,9 +1,8 @@
 
-const { Message, User, Profile, PhotoRequest } = require('../db');
+const { Message, User, Profile } = require('../db');
 const { Op } = require('sequelize');
 const jwt = require('../utils/jwt');
-const { Expo } = require('expo-server-sdk');
-const { sendExpoPushNotifications } = require('../utils/pushNotifications');
+const { getDisplayName, notifyUser } = require('../utils/notificationService');
 const { areUsersBlocked } = require('../utils/blocks');
 const { findObjectionableMatch } = require('../utils/safety');
 const { isProfileComplete } = require('../utils/profileCompletion');
@@ -111,6 +110,8 @@ function initSocket(server) {
       type,
       sentAt,
       imageUrl = null,
+      audioUrl = null,
+      audioDurationMs = null,
       viewOnce = false
     }) => {
       try {
@@ -147,21 +148,11 @@ function initSocket(server) {
           type,
           read: false,
           imageUrl: normalizeStorageReference(imageUrl),
+          audioUrl: normalizeStorageReference(audioUrl),
+          audioDurationMs: Number.isFinite(Number(audioDurationMs)) ? Number(audioDurationMs) : null,
           viewOnce,
           sentAt: sentAt || new Date(),
         });
-
-        const receiver = await User.findByPk(receiverId);
-
-        const capitalize = (str) => {
-          if (!str) return '';
-          return str
-            .split(' ')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-            .join(' ');
-        };
-        const fullName = capitalize(`${sender.firstName} ${sender.lastName}`);
-
 
         const receiverSockets = await io.in(receiverId.toString()).fetchSockets();
         const receiverInRoom = receiverSockets.length > 0;
@@ -170,24 +161,25 @@ function initSocket(server) {
           await newMessage.save();
         }
 
-        if (receiver?.pushToken && Expo.isExpoPushToken(receiver.pushToken) && !receiverInRoom) {
+        const conversationSockets = await io.in(safeRoomId).fetchSockets();
+        const receiverViewingConversation = conversationSockets.some(
+          (connectedSocket) => connectedSocket.userId === receiverId,
+        );
+        if (!receiverViewingConversation) {
           const unreadMessages = await Message.count({
-            where: { receiverId, read: false, receiverDeleted: false, receiverArchived: false }
+            where: { receiverId, read: false, receiverDeleted: false, receiverArchived: false },
           });
-
-          const messages = [{
-            to: receiver.pushToken,
-            sound: 'default',
-            title: fullName,
-            body: content,
-            data: {
-              screen: 'ChatDetail',
-              params: { type: 'message', senderId }
-            },
-            badge: unreadMessages
-          }];
-
-          await sendExpoPushNotifications(messages);
+          await notifyUser({
+            userId: receiverId,
+            type: 'message',
+            actorName: getDisplayName(sender),
+            preview: typeof content === 'string' ? content.trim().slice(0, 120) : '',
+            image: type === 'image' || Boolean(imageUrl),
+            audio: type === 'audio' || Boolean(audioUrl),
+            persist: false,
+            badge: unreadMessages,
+            data: { senderId, actorName: getDisplayName(sender) },
+          }).catch((error) => console.error('Failed to notify the message recipient:', error));
         }
 
         const messageWithRelations = await Message.findByPk(newMessage.id, {
@@ -241,34 +233,6 @@ function initSocket(server) {
       }
     });
 
-    socket.on('requestPhotoAccess', async ({ requesterId, targetUserId }) => {
-      try {
-
-        io.to(targetUserId.toString()).emit('newPhotoRequest', { requesterId, targetUserId });
-
-
-        let photoRequest = await PhotoRequest.findOne({ where: { requesterId, targetUserId } });
-        if (photoRequest) {
-          photoRequest.status = 'pending';
-          await photoRequest.save();
-        } else {
-          await PhotoRequest.create({ requesterId, targetUserId, status: 'pending' });
-        }
-
-        const targetUser = await User.findByPk(targetUserId);
-        if (targetUser?.pushToken && Expo.isExpoPushToken(targetUser.pushToken)) {
-          await sendExpoPushNotifications([{
-            to: targetUser.pushToken,
-            sound: 'default',
-            title: 'Private photo request',
-            body: 'Someone wants to view your private photos',
-            data: { screen: 'Requests', params: { type: 'photo_request' } },
-          }]);
-        }
-      } catch (err) {
-        console.error('❌ Photo request error:', err);
-      }
-    });
     socket.on('typing', ({ otherUserId }) => {
       if (!otherUserId) return;
       const roomId = [socket.userId, otherUserId].sort().join('-');

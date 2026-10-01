@@ -182,11 +182,29 @@ async function addMessageStatusColumns(transaction) {
   await conn.query(`
     ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "deliveredAt" TIMESTAMP WITH TIME ZONE;
     ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "readAt" TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "audioUrl" VARCHAR(255);
+    ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "audioDurationMs" INTEGER;
     ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "senderDeleted" BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "receiverDeleted" BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "senderArchived" BOOLEAN NOT NULL DEFAULT FALSE;
     ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "receiverArchived" BOOLEAN NOT NULL DEFAULT FALSE;
   `, { transaction });
+}
+
+async function addPushNotificationColumns(transaction) {
+  if (await tableExists('Users', transaction)) {
+    await conn.query(`
+      ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "notificationLocale" VARCHAR(2) NOT NULL DEFAULT 'es';
+    `, { transaction });
+  }
+  if (await tableExists('PushTokens', transaction)) {
+    await conn.query(`
+      ALTER TABLE "PushTokens" ADD COLUMN IF NOT EXISTS "locale" VARCHAR(2) NOT NULL DEFAULT 'es';
+      ALTER TABLE "PushTokens" ADD COLUMN IF NOT EXISTS "platform" VARCHAR(20);
+      ALTER TABLE "PushTokens" ADD COLUMN IF NOT EXISTS "active" BOOLEAN NOT NULL DEFAULT TRUE;
+      ALTER TABLE "PushTokens" ADD COLUMN IF NOT EXISTS "lastSeenAt" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW();
+    `, { transaction });
+  }
 }
 
 async function main() {
@@ -198,6 +216,7 @@ async function main() {
     await migrateStoredValues(transaction);
     await addLocationColumns(transaction);
     await addMessageStatusColumns(transaction);
+    await addPushNotificationColumns(transaction);
   });
   console.log('English schema migration completed successfully.');
 }

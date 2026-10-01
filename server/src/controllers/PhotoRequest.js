@@ -1,9 +1,8 @@
-const { PhotoRequest, Notification, User, Profile } = require('../db');
-const { Expo } = require('expo-server-sdk');
+const { PhotoRequest, User, Profile } = require('../db');
 const { Op } = require('sequelize');
 const { getIO } = require('./socket');
-const { sendExpoPushNotifications } = require('../utils/pushNotifications');
 const { isProfileComplete } = require('../utils/profileCompletion');
+const { getDisplayName, notifyUser } = require('../utils/notificationService');
 
 function emitPhotoAccessChanged(userId) {
   try {
@@ -64,12 +63,13 @@ const RequestPhotoAccess = async (req, res) => {
       photoRequest = await PhotoRequest.create({ requesterId, targetUserId });
     }
 
-    await Notification.create({
+    await notifyUser({
       userId: targetUserId,
       type: 'photo_request',
-      description: 'Someone wants to view your private photos',
+      actorName: getDisplayName(requester),
       relatedId: photoRequest.id,
-    });
+      data: { requesterId, requestId: photoRequest.id },
+    }).catch((error) => console.error('Failed to notify the photo owner:', error));
 
     try {
       getIO().to(targetUserId.toString()).emit('newPhotoRequest', {
@@ -81,22 +81,6 @@ const RequestPhotoAccess = async (req, res) => {
     }
 
     
-if (targetUser.pushToken && Expo.isExpoPushToken(targetUser.pushToken)) {
-  const messages = [{
-    to: targetUser.pushToken,
-    sound: 'default',
-    title: 'Private photo request',
-    body: 'Someone wants to view your private photos',
-    data: {
-      screen: 'Requests',
-        params: { type: 'photo_request' }
-    },
-  }];
-
-  await sendExpoPushNotifications(messages);
-  console.log('✅ Notification sent to the target user');
-}
-
     res.status(201).json({ message: 'Request sent or reactivated' });
   } catch (error) {
     console.error('❌ Photo access request error:', error);
@@ -181,48 +165,20 @@ const RespondToPhotoRequest = async (req, res) => {
       return res.status(403).json({ message: 'Only the owner can manage this permission' });
     }
 
-    const targetUser = await User.findByPk(photoRequest.targetUserId); 
-    const requester = await User.findByPk(photoRequest.requesterId); 
-
+    const targetUser = await User.findByPk(photoRequest.targetUserId, { include: [{ model: Profile }] });
     if (!['accepted', 'rejected', 'pending'].includes(decision)) {
       return res.status(400).json({ message: 'Invalid response' });
     }
- let notificationTitle = "";
-    let notificationBody = "";
-    let destinationScreen = 'Profile';
-function capitalize(text) {
-  if (!text) return "";
-  return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-}
-
     if (decision === "rejected") {
       await photoRequest.destroy();
       emitPhotoAccessChanged(photoRequest.requesterId);
-      notificationTitle = `${capitalize(targetUser.firstName)} ${capitalize(targetUser.lastName)}`;
-      notificationBody = "Your request to view photos was rejected.";
-
-      await Notification.create({
+      await notifyUser({
         userId: photoRequest.requesterId,
         type: "photo_request_rejected",
-        description: notificationBody,
+        actorName: getDisplayName(targetUser),
         relatedId: targetUser.id,
-      });
-
-      if (requester?.pushToken && Expo.isExpoPushToken(requester.pushToken)) {
-        await sendExpoPushNotifications([
-          {
-            to: requester.pushToken,
-            sound: "default",
-            title: notificationTitle,
-            body: notificationBody,
-            data: { 
-              screen: destinationScreen, 
-              params: { type: "photo_request_response", targetUserId: targetUser.id }
-            },
-          },
-        ]);
-        console.log("✅ Notification sent to requester (rejected)");
-      }
+        data: { targetUserId: targetUser.id },
+      }).catch((error) => console.error('Failed to notify the photo requester:', error));
 
       return res.json({ message: "Request rejected and deleted" });
     }
@@ -242,38 +198,13 @@ function capitalize(text) {
     await photoRequest.save();
     emitPhotoAccessChanged(photoRequest.requesterId);
 
-    if (decision === "accepted") {
-      notificationTitle = `${capitalize(targetUser.firstName)} ${capitalize(targetUser.lastName)}`;
-
-      notificationBody = "You were granted access to the private photos.";
-    } else {
-        notificationTitle = `${capitalize(targetUser.firstName)} ${capitalize(targetUser.lastName)}`;
-
-      notificationBody = "The request was marked as pending.";
-    }
-
-    await Notification.create({
+    await notifyUser({
       userId: photoRequest.requesterId,
       type: decision === 'accepted' ? 'photo_request_accepted' : 'photo_request_pending',
-      description: notificationBody,
+      actorName: getDisplayName(targetUser),
       relatedId: targetUser.id,
-    });
-
-    if (requester?.pushToken && Expo.isExpoPushToken(requester.pushToken)) {
-      await sendExpoPushNotifications([
-        {
-          to: requester.pushToken,
-          sound: "default",
-          title: notificationTitle,
-          body: notificationBody,
-          data: { 
-            screen: destinationScreen, 
-            params: { type: "photo_request_response", targetUserId: targetUser.id }
-          },
-        },
-      ]);
-      console.log(`✅ Notification sent to requester (${decision})`);
-    }
+      data: { targetUserId: targetUser.id },
+    }).catch((error) => console.error('Failed to notify the photo requester:', error));
 
     res.json({ message: `Photo request ${decision}` });
   } catch (error) {

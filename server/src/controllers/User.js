@@ -10,6 +10,7 @@ const { getBlockedUserIdsForUser, areUsersBlocked } = require('../utils/blocks')
 const { uploadFile, deleteStoredObject, normalizeStorageReference } = require('../utils/objectStorage');
 const { matchesProfileSearch } = require('../utils/profileMatching');
 const { isProfileComplete } = require('../utils/profileCompletion');
+const { getDisplayName, notifyUser } = require('../utils/notificationService');
 const { getIO } = require('./socket');
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -1386,6 +1387,13 @@ UpdateProfile: async (req, res) => {
 
       
       const newLike = await Like.create({ userId, likedUserId });
+      await notifyUser({
+        userId: likedUserId,
+        type: 'like_received',
+        actorName: getDisplayName(user),
+        relatedId: userId,
+        data: { actorUserId: userId },
+      }).catch((error) => console.error('Failed to notify the liked user:', error));
       return res.status(201).json({ message: 'Like saved successfully.', like: newLike });
 
     } catch (error) {

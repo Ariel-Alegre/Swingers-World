@@ -1,5 +1,5 @@
 const express = require('express');
-const upload = require('../middleware/uploadImage');
+const uploadMessageMedia = require('../middleware/uploadMessageMedia');
 const authenticateToken = require('../middleware/authenticateToken');
 const {
   createMessage,
@@ -16,7 +16,10 @@ const {
 
 const router = express.Router();
 
-router.post('/messages', authenticateToken, upload.single('image'), createMessage);
+router.post('/messages', authenticateToken, uploadMessageMedia.fields([
+  { name: 'media', maxCount: 1 },
+  { name: 'image', maxCount: 1 },
+]), createMessage);
 router.get('/messages', authenticateToken, getMessages);
 router.get('/conversations', authenticateToken, getConversations);
 router.delete('/conversations/:participantId', authenticateToken, deleteConversation);

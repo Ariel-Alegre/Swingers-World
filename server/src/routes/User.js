@@ -20,7 +20,7 @@ const {
   GetBlockedUsers,
   UnblockUser,
 } = require('../controllers/User');
-const { SavePushToken } = require('../controllers/PushToken');
+const { SavePushToken, DeletePushToken, UpdateNotificationPreferences } = require('../controllers/PushToken');
 const authenticateToken = require('../middleware/authenticateToken');
 const upload = require('../middleware/uploadImage');
 
@@ -47,5 +47,7 @@ router.get('/blocks', authenticateToken, GetBlockedUsers);
 router.post('/blocks', authenticateToken, BlockUser);
 router.delete('/blocks/:id', authenticateToken, UnblockUser);
 router.post('/push-tokens', authenticateToken, SavePushToken);
+router.delete('/push-tokens', authenticateToken, DeletePushToken);
+router.patch('/notification-preferences', authenticateToken, UpdateNotificationPreferences);
 
 module.exports = router;

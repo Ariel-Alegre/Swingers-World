@@ -63,6 +63,11 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
+    notificationLocale: {
+      type: DataTypes.STRING(2),
+      allowNull: false,
+      defaultValue: 'es',
+    },
 
     stripeCustomerId: {
       type: DataTypes.STRING,

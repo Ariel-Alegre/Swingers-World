@@ -2,8 +2,7 @@ require('dotenv').config();
 const { Op, Sequelize } = require('sequelize');
 const { Message, User, Profile } = require('../db');
 const { getIO } = require('../controllers/socket');
-const { Expo } = require('expo-server-sdk');
-const { sendExpoPushNotifications } = require('../utils/pushNotifications');
+const { getDisplayName, notifyUser } = require('../utils/notificationService');
 const { areUsersBlocked, getBlockedUserIdsForUser } = require('../utils/blocks');
 const { findObjectionableMatch } = require('../utils/safety');
 const { isProfileComplete } = require('../utils/profileCompletion');
@@ -58,9 +57,10 @@ const getMessages = async (req, res) => {
 const createMessage = async (req, res) => {
   const senderId = req.userId;
   const { receiverId, content } = req.body;
-
-
   let imageUrl = null;
+  let audioUrl = null;
+  let uploadedReference = null;
+  let messagePersisted = false;
 
   try {
     if (!senderId || !receiverId) {
@@ -75,12 +75,6 @@ const createMessage = async (req, res) => {
       });
     }
 
-    if (req.file && req.file.buffer) {
-      imageUrl = await uploadFile(req.file, 'chat-images');
-    } else if (req.body.imageUrl) {
-      imageUrl = normalizeStorageReference(req.body.imageUrl);
-    }
-
     if (await areUsersBlocked(senderId, receiverId)) {
       return res.status(403).json({ error: 'You cannot send messages to this user.' });
     }
@@ -90,75 +84,91 @@ const createMessage = async (req, res) => {
       return res.status(400).json({ error: 'The message contains prohibited content.' });
     }
 
+    const mediaFile = req.file || req.files?.media?.[0] || req.files?.image?.[0];
+    if (mediaFile?.buffer) {
+      const isAudio = String(mediaFile.mimetype || '').startsWith('audio/');
+      uploadedReference = await uploadFile(mediaFile, isAudio ? 'chat-audio' : 'chat-images');
+      if (isAudio) audioUrl = uploadedReference;
+      else imageUrl = uploadedReference;
+    } else {
+      if (req.body.imageUrl) imageUrl = normalizeStorageReference(req.body.imageUrl);
+      if (req.body.audioUrl) audioUrl = normalizeStorageReference(req.body.audioUrl);
+    }
+
+    const normalizedContent = typeof content === 'string' ? content.trim() : '';
+    if (!normalizedContent && !imageUrl && !audioUrl) {
+      return res.status(400).json({ error: 'A message, image, or audio recording is required.' });
+    }
+    const parsedDuration = Number(req.body.audioDurationMs);
+    const audioDurationMs = audioUrl && Number.isFinite(parsedDuration)
+      ? Math.max(0, Math.min(Math.round(parsedDuration), 5 * 60 * 1000))
+      : null;
+    const messageType = audioUrl ? 'audio' : imageUrl ? 'image' : 'text';
+
     const newMessage = await Message.create({
       senderId,
       receiverId,
-      content: content || null,
+      content: normalizedContent || null,
       imageUrl: imageUrl || null,
-      type: imageUrl ? 'image' : 'text',
-      viewOnce: true,
+      audioUrl: audioUrl || null,
+      audioDurationMs,
+      type: messageType,
+      viewOnce: false,
       viewed: false,
       read: false,
       sentAt: new Date(),
     });
+    messagePersisted = true;
 
+    try {
+      const io = getIO();
+      const roomId = [senderId, receiverId].sort().join('-');
+      const receiverSockets = await io.in(receiverId.toString()).fetchSockets();
+      if (receiverSockets.length) {
+        newMessage.deliveredAt = new Date();
+        await newMessage.save();
+        io.to(senderId.toString()).emit('messagesDelivered', {
+          receiverId,
+          messageIds: [newMessage.id],
+          deliveredAt: newMessage.deliveredAt.toISOString(),
+        });
+      }
+      io.to(roomId).emit(
+        'receiveMessage',
+        materializeMediaReferences(newMessage, getRequestBaseUrl(req)),
+      );
 
-    const io = getIO();
-    const roomId = [senderId, receiverId].sort().join('-');
-    const receiverSockets = await io.in(receiverId.toString()).fetchSockets();
-    if (receiverSockets.length) {
-      newMessage.deliveredAt = new Date();
-      await newMessage.save();
-      io.to(senderId.toString()).emit('messagesDelivered', {
-        receiverId,
-        messageIds: [newMessage.id],
-        deliveredAt: newMessage.deliveredAt.toISOString(),
+      const unreadMessages = await Message.count({
+        where: { receiverId, read: false, receiverDeleted: false, receiverArchived: false },
       });
-    }
-    io.to(roomId).emit(
-      'receiveMessage',
-      materializeMediaReferences(newMessage, getRequestBaseUrl(req)),
-    );
+      io.to(receiverId.toString()).emit('unreadMessages', { count: unreadMessages });
 
-    const unreadMessages = await Message.count({
-      where: { receiverId, read: false, receiverDeleted: false, receiverArchived: false },
-    });
-    io.to(receiverId.toString()).emit('unreadMessages', { count: unreadMessages });
-
-
-    const receiver = await User.findByPk(receiverId);
-    const capitalize = (str) => {
-      if (!str) return '';
-      return str
-        .split(' ')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-        .join(' ');
-    };
-
-
-
-
-    const fullName = capitalize(`${sender.firstName} ${sender.lastName}`);
-    if (receiver && receiver.pushToken && Expo.isExpoPushToken(receiver.pushToken)) {
-
-      const messages = [{
-        to: receiver.pushToken,
-        sound: 'default',
-        title: fullName,
-        body: content?.slice(0, 50) || 'New message',
-        data: {
-          screen: 'ChatDetail',
-          params: { type: 'message', senderId }
-        }
-        ,
-        badge: unreadMessages
-      }];
-
-      await sendExpoPushNotifications(messages);
+      const conversationSockets = await io.in(roomId).fetchSockets();
+      const receiverViewingConversation = conversationSockets.some(
+        (connectedSocket) => connectedSocket.userId === receiverId,
+      );
+      if (!receiverViewingConversation) {
+        await notifyUser({
+          userId: receiverId,
+          type: 'message',
+          actorName: getDisplayName(sender),
+          preview: normalizedContent.slice(0, 120),
+          image: Boolean(imageUrl),
+          audio: Boolean(audioUrl),
+          persist: false,
+          badge: unreadMessages,
+          data: { senderId, actorName: getDisplayName(sender) },
+        }).catch((error) => console.error('Failed to notify the message recipient:', error));
+      }
+    } catch (realtimeError) {
+      console.error('The message was saved, but its realtime update failed:', realtimeError);
     }
 
     res.status(201).json(newMessage);
   } catch (error) {
+    if (uploadedReference && !messagePersisted) {
+      await deleteStoredObject(uploadedReference).catch(() => undefined);
+    }
     console.error('❌ Failed to create message:', error);
     res.status(500).json({ error: 'Failed to create message' });
   }
@@ -201,6 +211,7 @@ const getConversations = async (req, res) => {
         'senderId',
         'receiverId',
         'read',
+        'type',
         'senderArchived',
         'receiverArchived',
         [
@@ -256,6 +267,7 @@ const getConversations = async (req, res) => {
         lastName: user.lastName,
         avatar: user.Profile?.photos?.[0]?.url ?? null,
         lastMessage: content.content,
+        lastMessageType: content.type,
         lastMessageAt: content.sentAt,
         isIncoming: content.senderId !== userId,
         read: content.senderId !== userId && content.read === true,

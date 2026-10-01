@@ -7,6 +7,9 @@ const visibleNotificationWhere = (userId) => ({
   [Op.or]: [
     { type: 'photo_request' },
     { type: 'photo_request_accepted' },
+    { type: 'photo_request_rejected' },
+    { type: 'photo_request_pending' },
+    { type: 'like_received' },
     { type: 'profile_incomplete' },
     {
       type: 'photo_response',

@@ -27,7 +27,7 @@ function getConfig() {
     const error = new Error(`Missing Railway Bucket configuration: ${missing.join(', ')}`);
     error.status = 503;
     error.code = 'STORAGE_NOT_CONFIGURED';
-    error.publicMessage = 'Photo storage is temporarily unavailable.';
+    error.publicMessage = 'Media storage is temporarily unavailable.';
     throw error;
   }
 
@@ -58,6 +58,13 @@ function extensionFor(file = {}) {
     'image/gif': '.gif',
     'image/heic': '.heic',
     'image/heif': '.heif',
+    'audio/aac': '.aac',
+    'audio/m4a': '.m4a',
+    'audio/mp4': '.m4a',
+    'audio/mpeg': '.mp3',
+    'audio/ogg': '.ogg',
+    'audio/wav': '.wav',
+    'audio/webm': '.webm',
   };
   if (byMime[file.mimetype]) return byMime[file.mimetype];
   const match = String(file.originalname || '').match(/\.[a-zA-Z0-9]{1,6}$/);
@@ -129,7 +136,10 @@ function normalizeStorageReference(value) {
 
 async function uploadFile(file, folder) {
   if (!file?.buffer?.length) throw new Error('The file is empty.');
-  if (!String(file.mimetype || '').startsWith('image/')) throw new Error('Only images are allowed.');
+  const mediaType = String(file.mimetype || '');
+  if (!mediaType.startsWith('image/') && !mediaType.startsWith('audio/')) {
+    throw new Error('Only images and audio files are allowed.');
+  }
   const config = getConfig();
   const safeFolder = String(folder || 'uploads').replace(/[^a-zA-Z0-9/_-]/g, '');
   const key = `${safeFolder}/${randomUUID()}${extensionFor(file)}`;

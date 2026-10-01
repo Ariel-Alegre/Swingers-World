@@ -20,6 +20,14 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
+    audioUrl: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    audioDurationMs: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
     viewOnce: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
