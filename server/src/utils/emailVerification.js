@@ -77,6 +77,8 @@ function createTransporter() {
 async function sendVerificationEmail(email, locale, code) {
   const copy = mailCopy(locale, code);
   const logoCandidates = [
+    path.resolve(__dirname, '../../assets/swingers-world.png'),
+    path.resolve(process.cwd(), 'assets/swingers-world.png'),
     path.resolve(__dirname, '../../../app/assets/swingers-world.png'),
     path.resolve(process.cwd(), '../app/assets/swingers-world.png'),
   ];
