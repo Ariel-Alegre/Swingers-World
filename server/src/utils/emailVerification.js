@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const nodemailer = require('nodemailer');
 const jwt = require('./jwt');
 const { EmailVerification, User } = require('../db');
@@ -74,24 +76,53 @@ function createTransporter() {
 
 async function sendVerificationEmail(email, locale, code) {
   const copy = mailCopy(locale, code);
+  const logoCandidates = [
+    path.resolve(__dirname, '../../../app/assets/swingers-world.png'),
+    path.resolve(process.cwd(), '../app/assets/swingers-world.png'),
+  ];
+  const localLogoPath = logoCandidates.find((candidate) => fs.existsSync(candidate));
+  const configuredLogoUrl = String(process.env.EMAIL_LOGO_URL || '').trim();
+  const logoSource = configuredLogoUrl || (localLogoPath ? 'cid:swingers-world-logo' : '');
+  const logoMarkup = logoSource
+    ? `<img src="${logoSource}" width="112" height="112" alt="Swingers World" style="display:block;width:112px;height:112px;border:0;border-radius:25px;object-fit:cover" />`
+    : '<div style="width:76px;height:76px;line-height:76px;border-radius:22px;background:#170d18;color:#f1bd70;font-size:32px;font-weight:900;text-align:center;border:1px solid #58354f">SW</div>';
+
   await createTransporter().sendMail({
     from: `"Swingers World" <${process.env.EMAIL}>`,
     to: email,
     subject: copy.subject,
     text: `${copy.title}\n\n${copy.intro}\n\n${code}\n\n${copy.expiry}\n${copy.warning}`,
+    attachments: localLogoPath && !configuredLogoUrl ? [{
+      filename: 'swingers-world.png',
+      path: localLogoPath,
+      cid: 'swingers-world-logo',
+      contentDisposition: 'inline',
+    }] : [],
     html: `<!doctype html>
       <html lang="${locale}">
-        <body style="margin:0;background:#120d16;font-family:Arial,sans-serif;color:#f8f2f7">
+        <body style="margin:0;padding:0;background:#0b080d;font-family:Arial,Helvetica,sans-serif;color:#fff8ee">
           <div style="display:none;max-height:0;overflow:hidden">${copy.preheader}</div>
-          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#120d16;padding:32px 16px">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#0b080d">
             <tr><td align="center">
-              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:520px;background:#211725;border:1px solid #493449;border-radius:20px;padding:36px">
-                <tr><td style="color:#ef4c91;font-size:13px;font-weight:700;letter-spacing:2px">SWINGERS WORLD</td></tr>
-                <tr><td style="padding-top:16px;font-size:28px;font-weight:800">${copy.title}</td></tr>
-                <tr><td style="padding-top:14px;color:#d8cbd6;font-size:16px;line-height:24px">${copy.intro}</td></tr>
-                <tr><td align="center" style="padding:28px 0"><div style="display:inline-block;padding:18px 28px;border-radius:14px;background:#fff;color:#211725;font-size:34px;font-weight:800;letter-spacing:8px">${code}</div></td></tr>
-                <tr><td style="color:#d8cbd6;font-size:14px;line-height:22px">${copy.expiry}</td></tr>
-                <tr><td style="padding-top:18px;color:#988b97;font-size:12px;line-height:18px">${copy.warning}</td></tr>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;margin:0 auto">
+                <tr><td height="32" style="height:32px"></td></tr>
+                <tr><td align="center" style="padding:0 20px 20px">${logoMarkup}</td></tr>
+                <tr><td align="center" style="padding:0 20px 10px;color:#f4c57d;font-size:12px;font-weight:800;letter-spacing:3px">SWINGERS WORLD</td></tr>
+                <tr><td style="padding:0 16px">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#1b121f;border:1px solid #493049;border-radius:24px">
+                    <tr><td align="center" style="padding:38px 30px 0;color:#fff8ee;font-size:28px;line-height:34px;font-weight:800">${copy.title}</td></tr>
+                    <tr><td align="center" style="padding:14px 34px 0;color:#cbbdca;font-size:16px;line-height:24px">${copy.intro}</td></tr>
+                    <tr><td align="center" style="padding:30px 20px">
+                      <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                        <tr><td align="center" style="padding:18px 24px;background:#fff8ee;border-radius:16px;color:#211725;font-size:34px;line-height:40px;font-weight:900;letter-spacing:9px">${code}</td></tr>
+                      </table>
+                    </td></tr>
+                    <tr><td align="center" style="padding:0 34px;color:#f4c57d;font-size:14px;line-height:22px;font-weight:700">${copy.expiry}</td></tr>
+                    <tr><td style="padding:30px 34px 0"><div style="height:1px;background:#493049;line-height:1px;font-size:1px">&nbsp;</div></td></tr>
+                    <tr><td align="center" style="padding:22px 34px 36px;color:#948694;font-size:12px;line-height:19px">${copy.warning}</td></tr>
+                  </table>
+                </td></tr>
+                <tr><td align="center" style="padding:22px 24px 34px;color:#6f626f;font-size:11px;line-height:17px">© ${new Date().getFullYear()} Swingers World · ${locale === 'en' ? 'Private and secure connections' : 'Conexiones privadas y seguras'}</td></tr>
               </table>
             </td></tr>
           </table>
