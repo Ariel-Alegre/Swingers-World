@@ -7,6 +7,7 @@ const DEFAULT_CODES = {
   404: 'NOT_FOUND',
   409: 'CONFLICT',
   413: 'PAYLOAD_TOO_LARGE',
+  415: 'UNSUPPORTED_MEDIA_TYPE',
   429: 'RATE_LIMITED',
   500: 'INTERNAL_ERROR',
 };
@@ -67,6 +68,7 @@ function errorHandler(err, req, res, next) {
     INVALID_JSON: 'The request body contains invalid JSON.',
     PAYLOAD_TOO_LARGE: 'The request payload is too large.',
     FILE_TOO_LARGE: 'The uploaded file is too large.',
+    UNSUPPORTED_MEDIA_TYPE: 'The selected media format is not supported.',
   };
   const publicMessage = publicMessages[code]
     || (normalizedStatus >= 500 ? 'An unexpected server error occurred.' : 'The request could not be completed.');
