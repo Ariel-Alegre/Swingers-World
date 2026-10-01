@@ -820,6 +820,25 @@ webhookRevenueCat: async (req, res) => {
     }
   },
 
+  CompleteOnboarding: async (req, res) => {
+    try {
+      const user = await User.findByPk(req.userId);
+      if (!user) {
+        return res.status(404).json({ message: 'User not found.' });
+      }
+
+      if (!user.onboardingCompletedAt) {
+        user.onboardingCompletedAt = new Date();
+        await user.save();
+      }
+
+      return res.status(200).json({ onboardingCompletedAt: user.onboardingCompletedAt });
+    } catch (error) {
+      console.error('Failed to complete onboarding:', error);
+      return res.status(500).json({ message: 'Internal server error' });
+    }
+  },
+
   Profile: async (req, res) => {
     try {
       const { id } = req.params;

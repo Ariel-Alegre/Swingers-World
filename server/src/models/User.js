@@ -30,6 +30,11 @@ module.exports = (sequelize) => {
       allowNull: true,
     },
 
+    onboardingCompletedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+
     password: {
       type: DataTypes.STRING,
       allowNull: false,

@@ -226,6 +226,25 @@ async function addEmailVerificationColumns(transaction) {
   `, { transaction });
 }
 
+async function addOnboardingColumns(transaction) {
+  if (!await tableExists('Users', transaction)) return;
+  await conn.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'Users'
+          AND column_name = 'onboardingCompletedAt'
+      ) THEN
+        ALTER TABLE "Users" ADD COLUMN "onboardingCompletedAt" TIMESTAMP WITH TIME ZONE;
+        UPDATE "Users" SET "onboardingCompletedAt" = NOW();
+      END IF;
+    END $$;
+  `, { transaction });
+}
+
 async function main() {
   await conn.authenticate();
   await conn.transaction(async (transaction) => {
@@ -238,6 +257,7 @@ async function main() {
     await addPushNotificationColumns(transaction);
     await addSubscriptionColumns(transaction);
     await addEmailVerificationColumns(transaction);
+    await addOnboardingColumns(transaction);
   });
   console.log('English schema migration completed successfully.');
 }

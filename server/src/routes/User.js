@@ -3,6 +3,7 @@ const {
   Register,
   Login,
   GetCurrentUser,
+  CompleteOnboarding,
   createPaymentSession,
   UpdateProfile,
   GetProfile,
@@ -33,6 +34,7 @@ router.post('/login', Login);
 router.post('/payments/session', createPaymentSession);
 
 router.get('/me', authenticateToken, GetCurrentUser);
+router.patch('/me/onboarding-complete', authenticateToken, CompleteOnboarding);
 router.patch('/profile', authenticateToken, upload.fields([{ name: 'photos', maxCount: 10 }]), UpdateProfile);
 router.delete('/profile/photo', authenticateToken, DeleteProfilePhoto);
 router.delete('/account', authenticateToken, DeleteAccount);
