@@ -1503,8 +1503,28 @@ UpdateProfile: async (req, res) => {
         source = 'profile',
       } = req.body;
 
-      if (!reportedUserId || !reason) {
+      const validReportReasons = new Set([
+        'inappropriate_content',
+        'fake_profile',
+        'harassment',
+        'suspected_underage',
+        'spam_or_scam',
+        'other',
+      ]);
+      const normalizedReason = typeof reason === 'string' ? reason.trim() : '';
+      const normalizedDetails = typeof details === 'string' ? details.trim() : '';
+
+      if (!reportedUserId || !normalizedReason) {
         return res.status(400).json({ message: 'The reported user and reason are required.' });
+      }
+      if (!validReportReasons.has(normalizedReason)) {
+        return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'The report reason is invalid.' });
+      }
+      if (normalizedReason === 'other' && !normalizedDetails) {
+        return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'Details are required for another report reason.' });
+      }
+      if (normalizedDetails.length > 1000) {
+        return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'Report details cannot exceed 1000 characters.' });
       }
 
       if (reportedUserId === reporterId) {
@@ -1524,8 +1544,8 @@ UpdateProfile: async (req, res) => {
         reporterId,
         reportedUserId,
         source,
-        reason,
-        details: details ? String(details).trim() : null,
+        reason: normalizedReason,
+        details: normalizedDetails || null,
         status: 'pending',
         autoBlocked: false,
       });
@@ -1534,8 +1554,8 @@ UpdateProfile: async (req, res) => {
         type: 'report',
         reporter,
         reportedUser,
-        reason,
-        details,
+        reason: normalizedReason,
+        details: normalizedDetails || null,
         source,
       });
 
