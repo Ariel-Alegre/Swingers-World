@@ -219,6 +219,13 @@ async function addSubscriptionColumns(transaction) {
   `, { transaction });
 }
 
+async function addEmailVerificationColumns(transaction) {
+  if (!await tableExists('Users', transaction)) return;
+  await conn.query(`
+    ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "emailVerifiedAt" TIMESTAMP WITH TIME ZONE;
+  `, { transaction });
+}
+
 async function main() {
   await conn.authenticate();
   await conn.transaction(async (transaction) => {
@@ -230,6 +237,7 @@ async function main() {
     await addMessageStatusColumns(transaction);
     await addPushNotificationColumns(transaction);
     await addSubscriptionColumns(transaction);
+    await addEmailVerificationColumns(transaction);
   });
   console.log('English schema migration completed successfully.');
 }

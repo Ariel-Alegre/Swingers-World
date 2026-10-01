@@ -3,7 +3,7 @@ const nodemailer = require('nodemailer');
 const bcrypt = require('bcrypt');
 const jwt = require('../utils/jwt');
 const { Op } = require('sequelize');
-const { User, Profile, Like, Message, PhotoRequest, Notification, PushToken, ContentReport, UserBlock } = require('../db'); 
+const { User, Profile, Like, Message, PhotoRequest, Notification, PushToken, ContentReport, UserBlock, conn } = require('../db');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { findObjectionableMatch } = require('../utils/safety');
 const { getBlockedUserIdsForUser, areUsersBlocked } = require('../utils/blocks');
@@ -12,6 +12,7 @@ const { matchesProfileSearch } = require('../utils/profileMatching');
 const { isProfileComplete } = require('../utils/profileCompletion');
 const { getDisplayName, notifyUser } = require('../utils/notificationService');
 const { getIO } = require('./socket');
+const { EmailVerificationError, getVerifiedEmailRecord, normalizeEmail } = require('../utils/emailVerification');
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -524,6 +525,7 @@ webhookRevenueCat: async (req, res) => {
       const {
         firstName, lastName, email, password, country,
         profileType = 'single', gender, partnerFirstName, partnerLastName, coupleType, acceptedTerms,
+        emailVerificationToken, locale,
       } = req.body;
 
       if (!firstName || !lastName || !email || !password) {
@@ -544,40 +546,48 @@ webhookRevenueCat: async (req, res) => {
         return res.status(400).json({ code: 'PROFILE_DETAILS_REQUIRED', message: 'Partner first name, last name, and couple composition are required.' });
       }
 
-      const existingUser = await User.findOne({ where: { email } });
+      const normalizedEmail = normalizeEmail(email);
+      const existingUser = await User.findOne({ where: { email: normalizedEmail } });
       if (existingUser) {
         return res.status(409).json({ code: 'EMAIL_ALREADY_REGISTERED', message: 'A user with that email address already exists.' });
       }
 
-      const hashedPassword = await bcrypt.hash(password, 10);
+      let newUser;
+      let profile;
+      await conn.transaction(async (transaction) => {
+        const verification = await getVerifiedEmailRecord(emailVerificationToken, normalizedEmail, transaction);
+        const hashedPassword = await bcrypt.hash(password, 10);
+        newUser = await User.create({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          email: normalizedEmail,
+          emailVerifiedAt: verification.verifiedAt || new Date(),
+          password: hashedPassword,
+          country,
+          role: 'user',
+          backgroundColor: getRandomColor(),
+          acceptedTerms: true,
+          status: 'active',
+          notificationLocale: locale === 'en' ? 'en' : 'es',
+        }, { transaction });
 
-      const newUser = await User.create({
-        firstName,
-        lastName,
-        email,
-        password: hashedPassword,
-        country,
-        role: 'user',
-        backgroundColor: getRandomColor(),
-        acceptedTerms: true,
-        status: 'active',
-      });
-
-      const profile = await Profile.create({
-        userId: newUser.id,
-        displayName: profileType === 'couple'
-          ? `${firstName.trim()} ${lastName.trim().charAt(0)}. & ${partnerFirstName.trim()} ${partnerLastName.trim().charAt(0)}.`
-          : `${firstName.trim()} ${lastName.trim().charAt(0)}.`,
-        profileType,
-        gender: normalizedGender,
-        partnerFirstName: profileType === 'couple' ? partnerFirstName.trim() : null,
-        partnerLastName: profileType === 'couple' ? partnerLastName.trim() : null,
-        coupleType: profileType === 'couple' ? coupleType : null,
-        description: null,
-        photosVisible: true,
-        privacyEnabled: false,
-        publicProfile: true,
-        verified: false,
+        profile = await Profile.create({
+          userId: newUser.id,
+          displayName: profileType === 'couple'
+            ? `${firstName.trim()} ${lastName.trim().charAt(0)}. & ${partnerFirstName.trim()} ${partnerLastName.trim().charAt(0)}.`
+            : `${firstName.trim()} ${lastName.trim().charAt(0)}.`,
+          profileType,
+          gender: normalizedGender,
+          partnerFirstName: profileType === 'couple' ? partnerFirstName.trim() : null,
+          partnerLastName: profileType === 'couple' ? partnerLastName.trim() : null,
+          coupleType: profileType === 'couple' ? coupleType : null,
+          description: null,
+          photosVisible: true,
+          privacyEnabled: false,
+          publicProfile: true,
+          verified: false,
+        }, { transaction });
+        await verification.update({ consumedAt: new Date() }, { transaction });
       });
 
 
@@ -647,8 +657,14 @@ webhookRevenueCat: async (req, res) => {
       emitDiscoverProfilesChanged(null, 'profile_created');
       return res.status(201).json({ user: serializeUser(newUser), profile });
     } catch (error) {
+      if (error instanceof EmailVerificationError) {
+        return res.status(error.status).json({ code: error.code, message: error.message });
+      }
+      if (error?.name === 'SequelizeUniqueConstraintError') {
+        return res.status(409).json({ code: 'EMAIL_ALREADY_REGISTERED', message: 'A user with that email address already exists.' });
+      }
       console.error("❌ Internal server error:", error);
-      return res.status(500).json({ message: 'Internal server error', error: error.message });
+      return res.status(500).json({ code: 'INTERNAL_ERROR', message: 'An unexpected server error occurred.' });
     }
   },
 

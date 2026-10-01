@@ -22,9 +22,12 @@ const {
 const { SavePushToken, DeletePushToken, UpdateNotificationPreferences } = require('../controllers/PushToken');
 const authenticateToken = require('../middleware/authenticateToken');
 const upload = require('../middleware/uploadImage');
+const { RequestEmailVerification, VerifyEmailCode } = require('../controllers/EmailVerification');
 
 const router = Router();
 
+router.post('/register/verification-code', RequestEmailVerification);
+router.post('/register/verify-email', VerifyEmailCode);
 router.post('/register', Register);
 router.post('/login', Login);
 router.post('/payments/session', createPaymentSession);

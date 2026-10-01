@@ -25,6 +25,11 @@ module.exports = (sequelize) => {
       validate: { isEmail: true },
     },
 
+    emailVerifiedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+
     password: {
       type: DataTypes.STRING,
       allowNull: false,
