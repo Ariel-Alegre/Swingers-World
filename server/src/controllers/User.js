@@ -12,7 +12,7 @@ const { matchesProfileSearch } = require('../utils/profileMatching');
 const { isProfileComplete } = require('../utils/profileCompletion');
 const { getDisplayName, notifyUser } = require('../utils/notificationService');
 const { getIO } = require('./socket');
-const { EmailVerificationError, getVerifiedEmailRecord, normalizeEmail } = require('../utils/emailVerification');
+const { EmailVerificationError, getVerifiedEmailRecord, normalizeEmail, sendWelcomeEmail } = require('../utils/emailVerification');
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -655,7 +655,16 @@ webhookRevenueCat: async (req, res) => {
 
 
       emitDiscoverProfilesChanged(null, 'profile_created');
-      return res.status(201).json({ user: serializeUser(newUser), profile });
+      void sendWelcomeEmail(normalizedEmail, locale, firstName).catch((welcomeEmailError) => {
+        console.error('Failed to send welcome email:', welcomeEmailError.message);
+      });
+
+      const token = jwt.sign(
+        { id: newUser.id, role: newUser.role },
+        process.env.JWT_SECRET,
+        { expiresIn: '15d' },
+      );
+      return res.status(201).json({ token, user: serializeUser(newUser), profile });
     } catch (error) {
       if (error instanceof EmailVerificationError) {
         return res.status(error.status).json({ code: error.code, message: error.message });

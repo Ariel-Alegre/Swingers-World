@@ -14,6 +14,16 @@ function emitPhotoAccessChanged(userId) {
     // The HTTP response must not fail if the realtime transport is unavailable.
   }
 }
+
+function emitPhotoRequestsChanged(userId) {
+  try {
+    getIO().to(userId.toString()).emit('photoRequestsChanged', {
+      changedAt: new Date().toISOString(),
+    });
+  } catch {
+    // The HTTP response must not fail if the realtime transport is unavailable.
+  }
+}
 const RequestPhotoAccess = async (req, res) => {
   const requesterId = req.userId || req.body.requesterId;
   const { targetUserId } = req.body;
@@ -76,6 +86,7 @@ const RequestPhotoAccess = async (req, res) => {
         requesterId,
         targetUserId,
       });
+      emitPhotoRequestsChanged(targetUserId);
     } catch (socketError) {
       console.warn('Failed to emit the request in real time:', socketError.message);
     }
@@ -172,6 +183,7 @@ const RespondToPhotoRequest = async (req, res) => {
     if (decision === "rejected") {
       await photoRequest.destroy();
       emitPhotoAccessChanged(photoRequest.requesterId);
+      emitPhotoRequestsChanged(photoRequest.targetUserId);
       await notifyUser({
         userId: photoRequest.requesterId,
         type: "photo_request_rejected",
@@ -197,6 +209,7 @@ const RespondToPhotoRequest = async (req, res) => {
     }
     await photoRequest.save();
     emitPhotoAccessChanged(photoRequest.requesterId);
+    emitPhotoRequestsChanged(photoRequest.targetUserId);
 
     await notifyUser({
       userId: photoRequest.requesterId,

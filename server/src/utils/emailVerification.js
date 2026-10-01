@@ -74,8 +74,7 @@ function createTransporter() {
   });
 }
 
-async function sendVerificationEmail(email, locale, code) {
-  const copy = mailCopy(locale, code);
+function emailLogo() {
   const logoCandidates = [
     path.resolve(__dirname, '../../assets/swingers-world.png'),
     path.resolve(process.cwd(), 'assets/swingers-world.png'),
@@ -85,21 +84,38 @@ async function sendVerificationEmail(email, locale, code) {
   const localLogoPath = logoCandidates.find((candidate) => fs.existsSync(candidate));
   const configuredLogoUrl = String(process.env.EMAIL_LOGO_URL || '').trim();
   const logoSource = configuredLogoUrl || (localLogoPath ? 'cid:swingers-world-logo' : '');
-  const logoMarkup = logoSource
-    ? `<img src="${logoSource}" width="112" height="112" alt="Swingers World" style="display:block;width:112px;height:112px;border:0;border-radius:25px;object-fit:cover" />`
-    : '<div style="width:76px;height:76px;line-height:76px;border-radius:22px;background:#170d18;color:#f1bd70;font-size:32px;font-weight:900;text-align:center;border:1px solid #58354f">SW</div>';
-
-  await createTransporter().sendMail({
-    from: `"Swingers World" <${process.env.EMAIL}>`,
-    to: email,
-    subject: copy.subject,
-    text: `${copy.title}\n\n${copy.intro}\n\n${code}\n\n${copy.expiry}\n${copy.warning}`,
+  return {
+    markup: logoSource
+      ? `<img src="${logoSource}" width="112" height="112" alt="Swingers World" style="display:block;width:112px;height:112px;border:0;border-radius:25px;object-fit:cover" />`
+      : '<div style="width:76px;height:76px;line-height:76px;border-radius:22px;background:#170d18;color:#f1bd70;font-size:32px;font-weight:900;text-align:center;border:1px solid #58354f">SW</div>',
     attachments: localLogoPath && !configuredLogoUrl ? [{
       filename: 'swingers-world.png',
       path: localLogoPath,
       cid: 'swingers-world-logo',
       contentDisposition: 'inline',
     }] : [],
+  };
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function sendVerificationEmail(email, locale, code) {
+  const copy = mailCopy(locale, code);
+  const logo = emailLogo();
+
+  await createTransporter().sendMail({
+    from: `"Swingers World" <${process.env.EMAIL}>`,
+    to: email,
+    subject: copy.subject,
+    text: `${copy.title}\n\n${copy.intro}\n\n${code}\n\n${copy.expiry}\n${copy.warning}`,
+    attachments: logo.attachments,
     html: `<!doctype html>
       <html lang="${locale}">
         <body style="margin:0;padding:0;background:#0b080d;font-family:Arial,Helvetica,sans-serif;color:#fff8ee">
@@ -108,7 +124,7 @@ async function sendVerificationEmail(email, locale, code) {
             <tr><td align="center">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;margin:0 auto">
                 <tr><td height="32" style="height:32px"></td></tr>
-                <tr><td align="center" style="padding:0 20px 20px">${logoMarkup}</td></tr>
+                <tr><td align="center" style="padding:0 20px 20px">${logo.markup}</td></tr>
                 <tr><td align="center" style="padding:0 20px 10px;color:#f4c57d;font-size:12px;font-weight:800;letter-spacing:3px">SWINGERS WORLD</td></tr>
                 <tr><td style="padding:0 16px">
                   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#1b121f;border:1px solid #493049;border-radius:24px">
@@ -125,6 +141,77 @@ async function sendVerificationEmail(email, locale, code) {
                   </table>
                 </td></tr>
                 <tr><td align="center" style="padding:22px 24px 34px;color:#6f626f;font-size:11px;line-height:17px">© ${new Date().getFullYear()} Swingers World · ${locale === 'en' ? 'Private and secure connections' : 'Conexiones privadas y seguras'}</td></tr>
+              </table>
+            </td></tr>
+          </table>
+        </body>
+      </html>`,
+  });
+}
+
+async function sendWelcomeEmail(email, requestedLocale, firstName) {
+  const locale = normalizeLocale(requestedLocale);
+  const cleanName = String(firstName || '').replace(/[\r\n]/g, ' ').trim().slice(0, 80);
+  const safeName = escapeHtml(cleanName);
+  const logo = emailLogo();
+  const copy = locale === 'en' ? {
+    subject: 'Welcome to Swingers World',
+    preheader: 'Your account is ready. Complete your profile to start connecting.',
+    title: `Welcome, ${safeName}!`,
+    intro: 'Your email has been verified and your Swingers World account is ready.',
+    nextTitle: 'Your next step',
+    nextBody: 'Complete your profile and upload at least one photo so other members can discover you.',
+    privacyTitle: 'You stay in control',
+    privacyBody: 'Choose whether your photos are public or require your approval before someone can view them.',
+    footer: 'Thank you for joining our private and respectful community.',
+  } : {
+    subject: 'Te damos la bienvenida a Swingers World',
+    preheader: 'Tu cuenta está lista. Completá tu perfil para comenzar a conectar.',
+    title: `¡Bienvenido/a, ${safeName}!`,
+    intro: 'Tu correo fue verificado y tu cuenta de Swingers World ya está lista.',
+    nextTitle: 'Tu próximo paso',
+    nextBody: 'Completá tu perfil y subí al menos una foto para que otras personas puedan encontrarte.',
+    privacyTitle: 'Vos tenés el control',
+    privacyBody: 'Elegí si tus fotos son públicas o si necesitás aprobar cada solicitud antes de mostrarlas.',
+    footer: 'Gracias por sumarte a nuestra comunidad privada y respetuosa.',
+  };
+
+  await createTransporter().sendMail({
+    from: `"Swingers World" <${process.env.EMAIL}>`,
+    to: email,
+    subject: copy.subject,
+    text: `${copy.title}\n\n${copy.intro}\n\n${copy.nextTitle}\n${copy.nextBody}\n\n${copy.privacyTitle}\n${copy.privacyBody}\n\n${copy.footer}`,
+    attachments: logo.attachments,
+    html: `<!doctype html>
+      <html lang="${locale}">
+        <body style="margin:0;padding:0;background:#0b080d;font-family:Arial,Helvetica,sans-serif;color:#fff8ee">
+          <div style="display:none;max-height:0;overflow:hidden">${copy.preheader}</div>
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#0b080d">
+            <tr><td align="center">
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;max-width:600px;margin:0 auto">
+                <tr><td height="32" style="height:32px"></td></tr>
+                <tr><td align="center" style="padding:0 20px 20px">${logo.markup}</td></tr>
+                <tr><td align="center" style="padding:0 20px 10px;color:#f4c57d;font-size:12px;font-weight:800;letter-spacing:3px">SWINGERS WORLD</td></tr>
+                <tr><td style="padding:0 16px">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#1b121f;border:1px solid #493049;border-radius:24px">
+                    <tr><td align="center" style="padding:38px 30px 0;color:#fff8ee;font-size:28px;line-height:35px;font-weight:800">${copy.title}</td></tr>
+                    <tr><td align="center" style="padding:14px 34px 30px;color:#cbbdca;font-size:16px;line-height:24px">${copy.intro}</td></tr>
+                    <tr><td style="padding:0 28px 12px">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#241727;border-radius:16px">
+                        <tr><td style="padding:20px 22px 6px;color:#f4c57d;font-size:15px;font-weight:800">${copy.nextTitle}</td></tr>
+                        <tr><td style="padding:0 22px 20px;color:#cbbdca;font-size:14px;line-height:22px">${copy.nextBody}</td></tr>
+                      </table>
+                    </td></tr>
+                    <tr><td style="padding:0 28px 28px">
+                      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="width:100%;background:#241727;border-radius:16px">
+                        <tr><td style="padding:20px 22px 6px;color:#f52887;font-size:15px;font-weight:800">${copy.privacyTitle}</td></tr>
+                        <tr><td style="padding:0 22px 20px;color:#cbbdca;font-size:14px;line-height:22px">${copy.privacyBody}</td></tr>
+                      </table>
+                    </td></tr>
+                    <tr><td align="center" style="padding:0 34px 36px;color:#948694;font-size:12px;line-height:19px">${copy.footer}</td></tr>
+                  </table>
+                </td></tr>
+                <tr><td align="center" style="padding:22px 24px 34px;color:#6f626f;font-size:11px;line-height:17px">© ${new Date().getFullYear()} Swingers World</td></tr>
               </table>
             </td></tr>
           </table>
@@ -214,5 +301,5 @@ async function getVerifiedEmailRecord(rawToken, rawEmail, transaction) {
 }
 
 module.exports = {
-  EmailVerificationError, getVerifiedEmailRecord, normalizeEmail, requestEmailVerification, verifyEmailCode,
+  EmailVerificationError, getVerifiedEmailRecord, normalizeEmail, requestEmailVerification, sendWelcomeEmail, verifyEmailCode,
 };
