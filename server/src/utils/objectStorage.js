@@ -166,14 +166,25 @@ async function deleteStoredObject(reference) {
   return true;
 }
 
-async function streamMediaToken(token, res) {
+async function streamMediaToken(token, req, res) {
   const decoded = jwt.verify(token, mediaSecret(), { audience: 'media' });
   if (!decoded?.key) throw Object.assign(new Error('Invalid file link.'), { status: 401 });
   const config = getConfig();
-  const object = await getClient().send(new GetObjectCommand({ Bucket: config.bucket, Key: decoded.key }));
+  const requestedRange = req.headers.range;
+  const object = await getClient().send(new GetObjectCommand({
+    Bucket: config.bucket,
+    Key: decoded.key,
+    ...(requestedRange ? { Range: requestedRange } : {}),
+  }));
 
   res.setHeader('Content-Type', object.ContentType || 'application/octet-stream');
   res.setHeader('Cache-Control', 'private, max-age=300');
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Content-Disposition', 'inline');
+  if (requestedRange && object.ContentRange) {
+    res.status(206);
+    res.setHeader('Content-Range', object.ContentRange);
+  }
   if (object.ContentLength !== undefined) res.setHeader('Content-Length', String(object.ContentLength));
   object.Body.pipe(res);
 }
