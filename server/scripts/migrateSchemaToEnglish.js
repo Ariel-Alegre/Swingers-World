@@ -209,6 +209,16 @@ async function addPushNotificationColumns(transaction) {
   }
 }
 
+async function addSubscriptionColumns(transaction) {
+  if (!await tableExists('Users', transaction)) return;
+  await conn.query(`
+    ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "revenueCatAppUserId" VARCHAR(255);
+    ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "subscriptionProductId" VARCHAR(255);
+    CREATE UNIQUE INDEX IF NOT EXISTS "users_revenue_cat_app_user_id_unique"
+      ON "Users" ("revenueCatAppUserId") WHERE "revenueCatAppUserId" IS NOT NULL;
+  `, { transaction });
+}
+
 async function main() {
   await conn.authenticate();
   await conn.transaction(async (transaction) => {
@@ -219,6 +229,7 @@ async function main() {
     await addLocationColumns(transaction);
     await addMessageStatusColumns(transaction);
     await addPushNotificationColumns(transaction);
+    await addSubscriptionColumns(transaction);
   });
   console.log('English schema migration completed successfully.');
 }

@@ -94,6 +94,17 @@ module.exports = (sequelize) => {
       allowNull: true,
     },
 
+    revenueCatAppUserId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+    },
+
+    subscriptionProductId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
     lastPaymentStatus: {
       type: DataTypes.STRING,
       allowNull: true,

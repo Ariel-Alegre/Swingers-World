@@ -1,7 +1,6 @@
 const { Router } = require('express');
 const {
   Register,
-  RegisterIOSRevenueCatSubscription,
   Login,
   GetCurrentUser,
   createPaymentSession,
@@ -27,7 +26,6 @@ const upload = require('../middleware/uploadImage');
 const router = Router();
 
 router.post('/register', Register);
-router.post('/subscriptions/revenuecat/register', RegisterIOSRevenueCatSubscription);
 router.post('/login', Login);
 router.post('/payments/session', createPaymentSession);
 

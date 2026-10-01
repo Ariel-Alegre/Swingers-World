@@ -91,12 +91,16 @@ async function createBaseProfile(userId, firstName, lastName) {
 
 function mapRevenueCatProductToPlan(productIdentifier) {
   const productMap = {
+    'com.swingers.world.premium.monthly': 'monthly',
+    'com.swingers.world.premium.six_months': 'six_months',
+    'com.swingers.world.premium.annual': 'annual',
     'com.swingers.vip.monthly': 'monthly',
     'com.swingers.vip.6months': 'six_months',
     'com.swingers.vip.annual': 'annual',
   };
 
-  return productMap[productIdentifier] || null;
+  const normalizedIdentifier = String(productIdentifier || '').split(':')[0];
+  return productMap[normalizedIdentifier] || null;
 }
 
 function getAuthenticatedUserId(req) {
@@ -414,11 +418,12 @@ webhookRevenueCat: async (req, res) => {
     const authHeader = req.headers.authorization || '';
     const expectedSecret = process.env.REVENUECAT_WEBHOOK_SECRET;
 
-    if (expectedSecret) {
-      const expectedAuth = `Bearer ${expectedSecret}`;
-      if (authHeader !== expectedAuth) {
-        return res.status(401).json({ message: 'Unauthorized RevenueCat webhook.' });
-      }
+    if (!expectedSecret) {
+      return res.status(503).json({ message: 'RevenueCat webhook is not configured.' });
+    }
+    const expectedAuth = `Bearer ${expectedSecret}`;
+    if (authHeader !== expectedAuth) {
+      return res.status(401).json({ message: 'Unauthorized RevenueCat webhook.' });
     }
 
     const event = req.body?.event;
@@ -432,48 +437,67 @@ webhookRevenueCat: async (req, res) => {
       app_user_id,
       original_app_user_id,
       product_id,
+      new_product_id,
       expiration_at_ms,
+      period_type,
     } = event;
 
-    const possibleEmails = [app_user_id, original_app_user_id]
+    const possibleIdentifiers = [app_user_id, original_app_user_id]
       .filter(Boolean)
-      .map((value) => String(value).trim().toLowerCase());
+      .map((value) => String(value).trim());
 
-    if (!possibleEmails.length) {
+    if (!possibleIdentifiers.length) {
       return res.status(200).json({ received: true, ignored: true });
     }
 
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const possibleIds = possibleIdentifiers.filter((value) => uuidPattern.test(value));
+    const possibleEmails = possibleIdentifiers.filter((value) => value.includes('@')).map((value) => value.toLowerCase());
+    const identityConditions = [
+      { revenueCatAppUserId: { [Op.in]: possibleIdentifiers } },
+      ...(possibleIds.length ? [{ id: { [Op.in]: possibleIds } }] : []),
+      ...(possibleEmails.length ? [{ email: { [Op.in]: possibleEmails } }] : []),
+    ];
+
     const user = await User.findOne({
-      where: {
-        email: {
-          [Op.in]: possibleEmails,
-        },
-      },
+      where: { [Op.or]: identityConditions },
     });
 
     if (!user) {
       return res.status(200).json({ received: true, ignored: true, reason: 'user_not_found' });
     }
 
-    const plan = mapRevenueCatProductToPlan(product_id) || user.plan;
+    const effectiveProductId = new_product_id || product_id;
+    const plan = mapRevenueCatProductToPlan(effectiveProductId) || user.plan;
     const currentPeriodEnd = expiration_at_ms ? new Date(expiration_at_ms) : user.currentPeriodEnd;
+    const revenueCatAppUserId = app_user_id || original_app_user_id || user.revenueCatAppUserId;
 
-    if (['INITIAL_PURCHASE', 'RENEWAL', 'PRODUCT_CHANGE', 'UNCANCELLATION', 'NON_RENEWING_PURCHASE'].includes(type)) {
+    if (['INITIAL_PURCHASE', 'RENEWAL', 'PRODUCT_CHANGE', 'UNCANCELLATION', 'NON_RENEWING_PURCHASE', 'SUBSCRIPTION_EXTENDED', 'TEMPORARY_ENTITLEMENT_GRANT', 'REFUND_REVERSED'].includes(type)) {
       await user.update({
         status: 'active',
         plan,
-        subscriptionStatus: 'active',
+        subscriptionStatus: period_type === 'TRIAL' ? 'trialing' : 'active',
         currentPeriodEnd,
         lastPaymentStatus: 'succeeded',
-        stripeCustomerId: user.stripeCustomerId || possibleEmails[0],
-        stripeSubscriptionId: product_id || user.stripeSubscriptionId,
+        revenueCatAppUserId,
+        subscriptionProductId: effectiveProductId || user.subscriptionProductId,
       });
-    } else if (['CANCELLATION', 'BILLING_ISSUE', 'SUBSCRIPTION_PAUSED'].includes(type)) {
+    } else if (['CANCELLATION', 'SUBSCRIPTION_PAUSED'].includes(type)) {
       await user.update({
         plan,
-        subscriptionStatus: 'canceled',
+        subscriptionStatus: 'canceling',
+        currentPeriodEnd,
+        revenueCatAppUserId,
+        subscriptionProductId: effectiveProductId || user.subscriptionProductId,
+      });
+    } else if (type === 'BILLING_ISSUE') {
+      await user.update({
+        plan,
+        subscriptionStatus: 'past_due',
         currentPeriodEnd,
         lastPaymentStatus: 'failed',
+        revenueCatAppUserId,
+        subscriptionProductId: effectiveProductId || user.subscriptionProductId,
       });
     } else if (['EXPIRATION'].includes(type)) {
       await user.update({
@@ -482,6 +506,8 @@ webhookRevenueCat: async (req, res) => {
         subscriptionStatus: 'expired',
         currentPeriodEnd,
         lastPaymentStatus: 'failed',
+        revenueCatAppUserId,
+        subscriptionProductId: effectiveProductId || user.subscriptionProductId,
       });
     }
 
