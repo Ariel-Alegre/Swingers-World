@@ -44,7 +44,13 @@ const getMessages = async (req, res) => {
       limit: 50,
     });
 
-    res.json(messages);
+    res.json(messages.map((message) => {
+      const serialized = message.toJSON();
+      if (serialized.viewOnce && (serialized.senderId === req.userId || serialized.viewed)) {
+        serialized.imageUrl = null;
+      }
+      return serialized;
+    }));
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Failed to retrieve messages' });
@@ -104,6 +110,7 @@ const createMessage = async (req, res) => {
       ? Math.max(0, Math.min(Math.round(parsedDuration), 5 * 60 * 1000))
       : null;
     const messageType = audioUrl ? 'audio' : imageUrl ? 'image' : 'text';
+    const viewOnce = Boolean(imageUrl) && ['true', '1'].includes(String(req.body.viewOnce).toLowerCase());
 
     const newMessage = await Message.create({
       senderId,
@@ -113,7 +120,7 @@ const createMessage = async (req, res) => {
       audioUrl: audioUrl || null,
       audioDurationMs,
       type: messageType,
-      viewOnce: false,
+      viewOnce,
       viewed: false,
       read: false,
       sentAt: new Date(),
@@ -133,10 +140,13 @@ const createMessage = async (req, res) => {
           deliveredAt: newMessage.deliveredAt.toISOString(),
         });
       }
-      io.to(roomId).emit(
-        'receiveMessage',
-        materializeMediaReferences(newMessage, getRequestBaseUrl(req)),
-      );
+      const outboundMessage = materializeMediaReferences(newMessage, getRequestBaseUrl(req));
+      if (newMessage.viewOnce) {
+        io.to(receiverId.toString()).emit('receiveMessage', outboundMessage);
+        io.to(senderId.toString()).emit('receiveMessage', { ...outboundMessage, imageUrl: null });
+      } else {
+        io.to(roomId).emit('receiveMessage', outboundMessage);
+      }
 
       const unreadMessages = await Message.count({
         where: { receiverId, read: false, receiverDeleted: false, receiverArchived: false },
@@ -164,7 +174,9 @@ const createMessage = async (req, res) => {
       console.error('The message was saved, but its realtime update failed:', realtimeError);
     }
 
-    res.status(201).json(newMessage);
+    const senderResponse = newMessage.toJSON();
+    if (senderResponse.viewOnce) senderResponse.imageUrl = null;
+    res.status(201).json(senderResponse);
   } catch (error) {
     if (uploadedReference && !messagePersisted) {
       await deleteStoredObject(uploadedReference).catch(() => undefined);
@@ -470,32 +482,32 @@ const markImageAsViewed = async (req, res) => {
       return res.status(404).json({ error: 'Message not found' });
     }
 
-    if (content.viewOnce) {
-
-      content.viewed = true;
-      await content.save();
-
-
-      if (content.imageUrl) {
-        try {
-          await deleteStoredObject(content.imageUrl);
-        } catch (err) {
-          console.warn('Failed to delete the image from the bucket:', err);
-        }
+    if (!content.viewOnce || !content.imageUrl) {
+      if (content.viewOnce && content.viewed) {
+        return res.json({ success: true, alreadyViewed: true });
       }
-
-
-      await content.destroy();
-
-
-      const io = getIO();
-      const roomId = [content.senderId, content.receiverId].sort().join('-');
-      io.to(roomId).emit('messageDeleted', { messageId });
-
-      return res.json({ success: true, message: 'Message deleted after the image was viewed' });
+      return res.status(400).json({ error: 'The message is not configured for one-time viewing' });
+    }
+    if (content.receiverId !== req.userId) {
+      return res.status(403).json({ error: 'Only the recipient can open this image.' });
     }
 
-    res.status(400).json({ error: 'The message is not configured for one-time viewing' });
+    const storedImage = content.imageUrl;
+    content.viewed = true;
+    content.imageUrl = null;
+    content.read = true;
+    content.readAt = content.readAt || new Date();
+    await content.save();
+
+    await deleteStoredObject(storedImage).catch((error) => {
+      console.warn('Failed to delete a viewed image from the bucket:', error);
+    });
+
+    const io = getIO();
+    const roomId = [content.senderId, content.receiverId].sort().join('-');
+    io.to(roomId).emit('messageViewed', { messageId, viewedAt: content.readAt.toISOString() });
+
+    return res.json({ success: true, viewed: true });
   } catch (error) {
     console.error('❌ Failed to mark the image as viewed and delete it:', error);
     res.status(500).json({ error: 'Failed to process image' });

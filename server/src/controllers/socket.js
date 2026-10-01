@@ -6,7 +6,7 @@ const { getDisplayName, notifyUser } = require('../utils/notificationService');
 const { areUsersBlocked } = require('../utils/blocks');
 const { findObjectionableMatch } = require('../utils/safety');
 const { isProfileComplete } = require('../utils/profileCompletion');
-const { normalizeStorageReference, materializeMediaReferences, getConfiguredBaseUrl } = require('../utils/objectStorage');
+const { deleteStoredObject, normalizeStorageReference, materializeMediaReferences, getConfiguredBaseUrl } = require('../utils/objectStorage');
 
 let io;
 
@@ -150,7 +150,7 @@ function initSocket(server) {
           imageUrl: normalizeStorageReference(imageUrl),
           audioUrl: normalizeStorageReference(audioUrl),
           audioDurationMs: Number.isFinite(Number(audioDurationMs)) ? Number(audioDurationMs) : null,
-          viewOnce,
+          viewOnce: Boolean(imageUrl) && ['true', '1'].includes(String(viewOnce).toLowerCase()),
           sentAt: sentAt || new Date(),
         });
 
@@ -193,7 +193,12 @@ function initSocket(server) {
           messageWithRelations.toJSON(),
           getConfiguredBaseUrl(),
         );
-        io.to(safeRoomId).emit('receiveMessage', outboundMessage);
+        if (newMessage.viewOnce) {
+          io.to(receiverId.toString()).emit('receiveMessage', outboundMessage);
+          io.to(senderId.toString()).emit('receiveMessage', { ...outboundMessage, imageUrl: null });
+        } else {
+          io.to(safeRoomId).emit('receiveMessage', outboundMessage);
+        }
 
 
         await sendUnreadMessages(receiverId);
@@ -247,10 +252,23 @@ function initSocket(server) {
       io.to(otherUserId.toString()).emit('conversationStopTyping', { typingUserId: socket.userId });
     });
 
-    socket.on('imageViewed', async ({ messageId, roomId }) => {
+    socket.on('imageViewed', async ({ messageId }) => {
       try {
-        await Message.update({ read: true, viewed: true }, { where: { id: messageId } });
-        io.to(roomId).emit('imageViewed', { messageId });
+        const message = await Message.findOne({
+          where: { id: messageId, receiverId: socket.userId, viewOnce: true },
+        });
+        if (!message?.imageUrl) return;
+        const storedImage = message.imageUrl;
+        message.imageUrl = null;
+        message.viewed = true;
+        message.read = true;
+        message.readAt = message.readAt || new Date();
+        await message.save();
+        await deleteStoredObject(storedImage).catch((error) => {
+          console.warn('Failed to delete a viewed image from the bucket:', error);
+        });
+        const safeRoomId = [message.senderId, message.receiverId].sort().join('-');
+        io.to(safeRoomId).emit('messageViewed', { messageId, viewedAt: message.readAt.toISOString() });
       } catch (error) {
         console.error('Failed to update viewed image:', error);
       }
