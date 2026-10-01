@@ -19,8 +19,13 @@ export function AppField({ label, error, secureTextEntry, style, ...props }: Pro
           style={[styles.input, style]}
         />
         {secureTextEntry ? (
-          <Pressable onPress={() => setVisible((value) => !value)} hitSlop={10}>
-            <Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={21} color={colors.textMuted} />
+          <Pressable
+            onPress={() => setVisible((value) => !value)}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel={visible ? 'Hide password' : 'Show password'}
+          >
+            <Ionicons name={visible ? 'eye-outline' : 'eye-off-outline'} size={21} color={colors.textMuted} />
           </Pressable>
         ) : null}
       </View>

@@ -4,25 +4,59 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppButton } from '../components/AppButton';
 import { AppField } from '../components/AppField';
 import { Screen } from '../components/Screen';
-import { api, getErrorMessage } from '../lib/api';
+import { api, getApiErrorCode, getErrorMessage } from '../lib/api';
 import { colors, radius, spacing } from '../theme/colors';
 import type { AuthStackParamList } from '../navigation/types';
+import { useLanguage } from '../context/LanguageContext';
+import { AppSelect } from '../components/AppSelect';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
+type ProfileType = 'single' | 'couple';
+type Gender = 'Male' | 'Female';
+type CoupleType = 'woman_man' | 'two_women' | 'two_men' | 'other';
+type RegisterField = 'profileType' | 'firstName' | 'lastName' | 'email' | 'password' | 'gender' | 'partnerFirstName' | 'partnerLastName' | 'coupleType';
+type RegisterErrors = Partial<Record<RegisterField, string>>;
 
 export function RegisterScreen({ navigation }: Props) {
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', password: '' });
+  const { t } = useLanguage();
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
+  const [profileType, setProfileType] = useState<ProfileType | ''>('');
+  const [gender, setGender] = useState<Gender | ''>('');
+  const [partnerFirstName, setPartnerFirstName] = useState('');
+  const [partnerLastName, setPartnerLastName] = useState('');
+  const [coupleType, setCoupleType] = useState<CoupleType | ''>('');
   const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const update = (key: keyof typeof form) => (value: string) => setForm((current) => ({ ...current, [key]: value }));
+  const [fieldErrors, setFieldErrors] = useState<RegisterErrors>({});
+  const [acceptedError, setAcceptedError] = useState('');
+  const clearFieldError = (key: RegisterField) => setFieldErrors((current) => ({ ...current, [key]: undefined }));
+  const update = (key: keyof typeof form) => (value: string) => {
+    setForm((current) => ({ ...current, [key]: value }));
+    clearFieldError(key);
+    setError('');
+  };
 
   const submit = async () => {
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.email.trim() || !form.password || !form.phone.trim()) {
-      return setError('Completá todos los campos.');
+    const required = t('validation.required');
+    const nextErrors: RegisterErrors = {};
+    if (!profileType) nextErrors.profileType = required;
+    if (!form.firstName.trim()) nextErrors.firstName = required;
+    if (!form.lastName.trim()) nextErrors.lastName = required;
+    if (!form.email.trim()) nextErrors.email = required;
+    else if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) nextErrors.email = t('validation.email');
+    if (!form.password) nextErrors.password = required;
+    else if (form.password.length < 8) nextErrors.password = t('validation.passwordMin');
+    if (profileType === 'single' && !gender) nextErrors.gender = required;
+    if (profileType === 'couple') {
+      if (!partnerFirstName.trim()) nextErrors.partnerFirstName = required;
+      if (!partnerLastName.trim()) nextErrors.partnerLastName = required;
+      if (!coupleType) nextErrors.coupleType = required;
     }
-    if (form.password.length < 8) return setError('La contraseña debe tener al menos 8 caracteres.');
-    if (!accepted) return setError('Debés aceptar los términos para continuar.');
+    setFieldErrors(nextErrors);
+    const nextAcceptedError = accepted ? '' : t('register.acceptTerms');
+    setAcceptedError(nextAcceptedError);
+    if (Object.keys(nextErrors).length || nextAcceptedError) return;
     setLoading(true);
     setError('');
     try {
@@ -31,12 +65,21 @@ export function RegisterScreen({ navigation }: Props) {
         lastName: form.lastName.trim(),
         email: form.email.trim().toLowerCase(),
         password: form.password,
-        phone: form.phone.trim(),
+        profileType,
+        gender: profileType === 'single' ? gender : undefined,
+        partnerFirstName: profileType === 'couple' ? partnerFirstName.trim() : undefined,
+        partnerLastName: profileType === 'couple' ? partnerLastName.trim() : undefined,
+        coupleType: profileType === 'couple' ? coupleType : undefined,
         acceptedTerms: true,
       });
       navigation.replace('Login');
     } catch (value) {
-      setError(getErrorMessage(value, 'No pudimos crear la cuenta.'));
+      const message = getErrorMessage(value, t('register.failed'), t);
+      if (getApiErrorCode(value) === 'EMAIL_ALREADY_REGISTERED') {
+        setFieldErrors((current) => ({ ...current, email: message }));
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -47,27 +90,73 @@ export function RegisterScreen({ navigation }: Props) {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.root}>
         <View>
           <Text style={styles.eyebrow}>SWINGERS WORLD</Text>
-          <Text style={styles.title}>Creá tu cuenta</Text>
-          <Text style={styles.subtitle}>Sólo para mayores de 18 años.</Text>
+          <Text style={styles.title}>{t('register.title')}</Text>
+          <Text style={styles.subtitle}>{t('register.adultsOnly')}</Text>
         </View>
         <View style={styles.form}>
-          <AppField label="Nombre" value={form.firstName} onChangeText={update('firstName')} autoComplete="given-name" />
-          <AppField label="Apellido" value={form.lastName} onChangeText={update('lastName')} autoComplete="family-name" />
-          <AppField label="Correo electrónico" value={form.email} onChangeText={update('email')} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
-          <AppField label="Teléfono" value={form.phone} onChangeText={update('phone')} keyboardType="phone-pad" autoComplete="tel" />
-          <AppField label="Contraseña" value={form.password} onChangeText={update('password')} secureTextEntry autoComplete="new-password" />
-          <Pressable onPress={() => setAccepted((value) => !value)} style={styles.checkRow}>
-            <View style={[styles.checkbox, accepted && styles.checked]}>{accepted ? <Text style={styles.check}>✓</Text> : null}</View>
-            <Text style={styles.checkText}>Confirmo que soy mayor de 18 años y acepto los términos y la política de privacidad.</Text>
+          <AppSelect
+            label={t('register.profileType')}
+            value={profileType}
+            placeholder={t('common.selectOption')}
+            cancelLabel={t('common.cancel')}
+            error={fieldErrors.profileType}
+            onChange={(value) => { setProfileType(value); clearFieldError('profileType'); setError(''); }}
+            options={[
+              { value: 'single', label: t('register.single') },
+              { value: 'couple', label: t('register.couple') },
+            ]}
+          />
+          <AppField label={t('register.firstName')} value={form.firstName} error={fieldErrors.firstName} onChangeText={update('firstName')} autoComplete="given-name" />
+          <AppField label={t('register.lastName')} value={form.lastName} error={fieldErrors.lastName} onChangeText={update('lastName')} autoComplete="family-name" />
+          <AppField label={t('login.email')} value={form.email} error={fieldErrors.email} onChangeText={update('email')} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
+          <AppField label={t('login.password')} value={form.password} error={fieldErrors.password} onChangeText={update('password')} secureTextEntry autoComplete="new-password" />
+          {profileType === 'single' ? (
+            <AppSelect
+              label={t('register.gender')}
+              value={gender}
+              placeholder={t('common.selectOption')}
+              cancelLabel={t('common.cancel')}
+              error={fieldErrors.gender}
+              onChange={(value) => { setGender(value); clearFieldError('gender'); }}
+              options={[
+                { value: 'Male', label: t('value.male') },
+                { value: 'Female', label: t('value.female') },
+              ]}
+            />
+          ) : null}
+          {profileType === 'couple' ? (
+            <>
+              <AppField label={t('register.partnerName')} value={partnerFirstName} error={fieldErrors.partnerFirstName} onChangeText={(value) => { setPartnerFirstName(value); clearFieldError('partnerFirstName'); }} autoComplete="given-name" />
+              <AppField label={t('register.partnerLastName')} value={partnerLastName} error={fieldErrors.partnerLastName} onChangeText={(value) => { setPartnerLastName(value); clearFieldError('partnerLastName'); }} autoComplete="family-name" />
+              <AppSelect
+                label={t('register.coupleType')}
+                value={coupleType}
+                placeholder={t('common.selectOption')}
+                cancelLabel={t('common.cancel')}
+                error={fieldErrors.coupleType}
+                onChange={(value) => { setCoupleType(value); clearFieldError('coupleType'); }}
+                options={[
+                  { value: 'woman_man', label: t('value.womanMan') },
+                  { value: 'two_women', label: t('value.twoWomen') },
+                  { value: 'two_men', label: t('value.twoMen') },
+                  { value: 'other', label: t('value.otherCouple') },
+                ]}
+              />
+            </>
+          ) : null}
+          <Pressable onPress={() => { setAccepted((value) => !value); setAcceptedError(''); }} style={styles.checkRow}>
+            <View style={[styles.checkbox, acceptedError && styles.checkboxError, accepted && styles.checked]}>{accepted ? <Text style={styles.check}>✓</Text> : null}</View>
+            <Text style={styles.checkText}>{t(profileType === 'couple' ? 'register.confirmAdultsCouple' : 'register.confirmAdult')}</Text>
           </Pressable>
+          {acceptedError ? <Text style={styles.error}>{acceptedError}</Text> : null}
           <View style={styles.legalLinks}>
-            <Pressable onPress={() => navigation.navigate('Legal', { document: 'terms' })}><Text style={styles.legalLink}>Ver términos</Text></Pressable>
+            <Pressable onPress={() => navigation.navigate('Legal', { document: 'terms' })}><Text style={styles.legalLink}>{t('register.viewTerms')}</Text></Pressable>
             <Text style={styles.separator}>•</Text>
-            <Pressable onPress={() => navigation.navigate('Legal', { document: 'privacy' })}><Text style={styles.legalLink}>Ver privacidad</Text></Pressable>
+            <Pressable onPress={() => navigation.navigate('Legal', { document: 'privacy' })}><Text style={styles.legalLink}>{t('register.viewPrivacy')}</Text></Pressable>
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <AppButton title="Crear cuenta" onPress={submit} loading={loading} />
-          <Pressable onPress={() => navigation.goBack()}><Text style={styles.back}>Ya tengo cuenta</Text></Pressable>
+          <AppButton title={t('register.submit')} onPress={submit} loading={loading} />
+          <Pressable onPress={() => navigation.goBack()}><Text style={styles.back}>{t('register.haveAccount')}</Text></Pressable>
         </View>
       </KeyboardAvoidingView>
     </Screen>
@@ -82,6 +171,7 @@ const styles = StyleSheet.create({
   form: { gap: spacing.md, padding: spacing.lg, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
   checkRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'flex-start' },
   checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  checkboxError: { borderColor: colors.danger },
   checked: { backgroundColor: colors.primary, borderColor: colors.primary },
   check: { color: colors.white, fontWeight: '900' },
   checkText: { flex: 1, color: colors.textMuted, fontSize: 13, lineHeight: 19 },

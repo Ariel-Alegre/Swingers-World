@@ -16,6 +16,7 @@ export function Screen({ children, scroll = false, contentStyle, refreshControl 
       contentContainerStyle={[styles.scroll, contentStyle]}
       keyboardShouldPersistTaps="handled"
       refreshControl={refreshControl}
+      alwaysBounceVertical={Boolean(refreshControl)}
       showsVerticalScrollIndicator={false}
     >
       {children}

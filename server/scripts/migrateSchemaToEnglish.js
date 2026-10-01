@@ -182,6 +182,10 @@ async function addMessageStatusColumns(transaction) {
   await conn.query(`
     ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "deliveredAt" TIMESTAMP WITH TIME ZONE;
     ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "readAt" TIMESTAMP WITH TIME ZONE;
+    ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "senderDeleted" BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "receiverDeleted" BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "senderArchived" BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE "Messages" ADD COLUMN IF NOT EXISTS "receiverArchived" BOOLEAN NOT NULL DEFAULT FALSE;
   `, { transaction });
 }
 

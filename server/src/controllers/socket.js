@@ -34,7 +34,7 @@ function initSocket(server) {
 
   async function markPendingMessagesDelivered(userId) {
     const pendingMessages = await Message.findAll({
-      where: { receiverId: userId, deliveredAt: null },
+      where: { receiverId: userId, deliveredAt: null, receiverDeleted: false },
       attributes: ['id', 'senderId'],
     });
     if (!pendingMessages.length) return;
@@ -60,7 +60,7 @@ function initSocket(server) {
   async function sendUnreadMessages(userId) {
     try {
       const unreadMessages = await Message.findAll({
-        where: { receiverId: userId, read: false },
+        where: { receiverId: userId, read: false, receiverDeleted: false, receiverArchived: false },
       });
 
       io.to(userId).emit('unreadMessages', materializeMediaReferences({
@@ -172,7 +172,7 @@ function initSocket(server) {
 
         if (receiver?.pushToken && Expo.isExpoPushToken(receiver.pushToken) && !receiverInRoom) {
           const unreadMessages = await Message.count({
-            where: { receiverId, read: false }
+            where: { receiverId, read: false, receiverDeleted: false, receiverArchived: false }
           });
 
           const messages = [{
@@ -228,6 +228,8 @@ function initSocket(server) {
           where: {
             receiverId: userId,
             read: false,
+            receiverDeleted: false,
+            receiverArchived: false,
           },
         });
 

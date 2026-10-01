@@ -4,8 +4,8 @@ import { colors, spacing } from '../theme/colors';
 
 export function Header({ title, subtitle, action }: { title: string; subtitle?: string; action?: React.ReactNode }) {
   return (
-    <View style={styles.row}>
-      <View style={styles.copy}>
+    <View pointerEvents="box-none" style={styles.row}>
+      <View pointerEvents="none" style={styles.copy}>
         <Text style={styles.eyebrow}>SWINGERS WORLD</Text>
         <Text style={styles.title}>{title}</Text>
         {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
@@ -16,7 +16,7 @@ export function Header({ title, subtitle, action }: { title: string; subtitle?: 
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.lg, zIndex: 20 },
   copy: { flex: 1 },
   eyebrow: { color: colors.primary, fontSize: 11, fontWeight: '900', letterSpacing: 2.5 },
   title: { color: colors.text, fontSize: 30, fontWeight: '900', marginTop: 3 },

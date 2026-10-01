@@ -12,11 +12,14 @@ import { useAuth } from '../context/AuthContext';
 import { api, getErrorMessage } from '../lib/api';
 import { colors, radius, spacing } from '../theme/colors';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
+import { useLanguage } from '../context/LanguageContext';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 
 type Navigation = CompositeNavigationProp<BottomTabNavigationProp<MainTabParamList, 'Cuenta'>, NativeStackNavigationProp<RootStackParamList>>;
 
 export function AccountScreen({ navigation }: { navigation: Navigation }) {
   const { user, signOut } = useAuth();
+  const { t, formatProfileValue } = useLanguage();
   const [deleting, setDeleting] = useState(false);
   if (!user) return null;
   const profile = user.Profile;
@@ -24,18 +27,18 @@ export function AccountScreen({ navigation }: { navigation: Navigation }) {
   const photo = profile?.photos?.[0]?.url;
 
   const confirmDelete = () => Alert.alert(
-    'Eliminar cuenta',
-    'Esta acción elimina tu perfil, mensajes, solicitudes y fotos. No se puede deshacer.',
+    t('account.deleteTitle'),
+    t('account.deleteMessage'),
     [
-      { text: 'Cancelar', style: 'cancel' },
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Eliminar definitivamente', style: 'destructive', onPress: () => void (async () => {
+        text: t('account.deleteForever'), style: 'destructive', onPress: () => void (async () => {
           setDeleting(true);
           try {
             await api.delete('/account');
             await signOut();
           } catch (value) {
-            Alert.alert('No se pudo eliminar', getErrorMessage(value));
+            Alert.alert(t('account.deleteFailed'), getErrorMessage(value, t('error.generic'), t));
           } finally {
             setDeleting(false);
           }
@@ -46,29 +49,31 @@ export function AccountScreen({ navigation }: { navigation: Navigation }) {
 
   return (
     <Screen scroll>
-      <Header title="Mi cuenta" subtitle="Privacidad y configuración" />
+      <Header title={t('account.title')} subtitle={t('account.subtitle')} />
       <View style={styles.profileCard}>
         {photo ? <Image source={{ uri: photo }} style={styles.cover} /> : <UserAvatar name={name} size={110} />}
         <Text style={styles.name}>{name}</Text>
         <Text style={styles.email}>{user.email}</Text>
         <View style={styles.badges}>
-          {profile?.verified ? <Text style={styles.badge}>✓ Verificado</Text> : null}
-          <Text style={styles.badge}>{user.plan || 'Miembro'}</Text>
+          <Text style={styles.badge}>{formatProfileValue(profile?.profileType === 'couple' ? 'couple' : 'single')}</Text>
+          {profile?.verified ? <Text style={styles.badge}>{t('account.verified')}</Text> : null}
+          <Text style={styles.badge}>{user.plan ? formatProfileValue(user.plan) : t('common.member')}</Text>
         </View>
       </View>
 
       <Pressable onPress={() => navigation.navigate('EditProfile')} style={styles.menuItem}>
-        <Ionicons name="person-outline" size={22} color={colors.gold} /><Text style={styles.menuText}>Editar perfil</Text><Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+        <Ionicons name="person-outline" size={22} color={colors.gold} /><Text style={styles.menuText}>{t('account.editProfile')}</Text><Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
       </Pressable>
       <Pressable onPress={() => navigation.navigate('Legal', { document: 'privacy' })} style={[styles.menuItem, styles.nextItem]}>
-        <Ionicons name="document-text-outline" size={22} color={colors.gold} /><Text style={styles.menuText}>Privacidad y términos</Text><Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+        <Ionicons name="document-text-outline" size={22} color={colors.gold} /><Text style={styles.menuText}>{t('account.privacyTerms')}</Text><Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
       </Pressable>
+      <LanguageSwitcher />
       <View style={styles.privacyCard}>
         <Ionicons name="shield-checkmark-outline" size={24} color={colors.success} />
-        <View style={styles.privacyCopy}><Text style={styles.privacyTitle}>Tu privacidad importa</Text><Text style={styles.privacyText}>Las fotos privadas deben ser autorizadas por vos y el acceso puede expirar.</Text></View>
+        <View style={styles.privacyCopy}><Text style={styles.privacyTitle}>{t('account.privacyTitle')}</Text><Text style={styles.privacyText}>{t('account.privacyText')}</Text></View>
       </View>
-      <AppButton title="Cerrar sesión" variant="secondary" onPress={() => void signOut()} style={styles.logout} />
-      <AppButton title="Eliminar mi cuenta" variant="danger" onPress={confirmDelete} loading={deleting} style={styles.delete} />
+      <AppButton title={t('account.signOut')} variant="secondary" onPress={() => void signOut()} style={styles.logout} />
+      <AppButton title={t('account.delete')} variant="danger" onPress={confirmDelete} loading={deleting} style={styles.delete} />
     </Screen>
   );
 }

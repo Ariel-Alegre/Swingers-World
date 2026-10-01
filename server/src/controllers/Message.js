@@ -27,10 +27,11 @@ const getMessages = async (req, res) => {
       return res.json([]);
     }
 
+    const otherUserId = req.userId === senderId ? receiverId : senderId;
     const whereClause = {
       [Op.or]: [
-        { senderId, receiverId },
-        { senderId: receiverId, receiverId: senderId },
+        { senderId: req.userId, receiverId: otherUserId, senderDeleted: false },
+        { senderId: otherUserId, receiverId: req.userId, receiverDeleted: false },
       ],
     };
 
@@ -120,7 +121,7 @@ const createMessage = async (req, res) => {
     );
 
     const unreadMessages = await Message.count({
-      where: { receiverId, read: false },
+      where: { receiverId, read: false, receiverDeleted: false, receiverArchived: false },
     });
     io.to(receiverId.toString()).emit('unreadMessages', { count: unreadMessages });
 
@@ -178,6 +179,12 @@ const getConversations = async (req, res) => {
       where: {
         [Op.and]: [
           { [Op.or]: [{ senderId: userId }, { receiverId: userId }] },
+          {
+            [Op.or]: [
+              { senderId: userId, senderDeleted: false, senderArchived: false },
+              { receiverId: userId, receiverDeleted: false, receiverArchived: false },
+            ],
+          },
           {
             senderId: { [Op.notIn]: blockedUserIds },
           },
@@ -254,7 +261,7 @@ const markAsRead = async (req, res) => {
     if (!senderId) return res.status(400).json({ error: 'senderId is required' });
 
     const unreadMessages = await Message.findAll({
-      where: { senderId, receiverId, read: false },
+      where: { senderId, receiverId, read: false, receiverDeleted: false },
       attributes: ['id'],
     });
     const messageIds = unreadMessages.map((message) => message.id);
@@ -275,7 +282,7 @@ const markAsRead = async (req, res) => {
 
 
     const count = await Message.count({
-      where: { receiverId, read: false },
+      where: { receiverId, read: false, receiverDeleted: false, receiverArchived: false },
     });
     getIO().to(receiverId.toString()).emit('unreadMessages', { count });
 
@@ -295,6 +302,8 @@ const getUnreadMessageCounts = async (req, res) => {
       where: {
         receiverId: userId,
         read: false,
+        receiverDeleted: false,
+        receiverArchived: false,
       },
       attributes: [
         'senderId',
@@ -308,6 +317,81 @@ const getUnreadMessageCounts = async (req, res) => {
   } catch (error) {
     console.error('❌ Failed to retrieve notifications:', error);
     res.status(500).json({ error: 'Failed to retrieve notifications' });
+  }
+};
+
+const deleteConversation = async (req, res) => {
+  const userId = req.userId;
+  const { participantId } = req.params;
+  const validParticipantId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(participantId || '');
+
+  if (!validParticipantId || participantId === userId) {
+    return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'A valid participant is required.' });
+  }
+
+  try {
+    const [[outgoingCount], [incomingCount]] = await Promise.all([
+      Message.update(
+        { senderDeleted: true },
+        { where: { senderId: userId, receiverId: participantId, senderDeleted: false } },
+      ),
+      Message.update(
+        { receiverDeleted: true },
+        { where: { senderId: participantId, receiverId: userId, receiverDeleted: false } },
+      ),
+    ]);
+
+    const unreadCount = await Message.count({
+      where: { receiverId: userId, read: false, receiverDeleted: false, receiverArchived: false },
+    });
+    const io = getIO();
+    io.to(userId.toString()).emit('conversationDeleted', { participantId });
+    io.to(userId.toString()).emit('unreadMessages', { count: unreadCount });
+
+    return res.json({ success: true, deletedMessages: outgoingCount + incomingCount });
+  } catch (error) {
+    console.error('Failed to delete conversation:', error);
+    return res.status(500).json({ code: 'INTERNAL_ERROR', message: 'Failed to delete conversation.' });
+  }
+};
+
+const archiveConversation = async (req, res) => {
+  const userId = req.userId;
+  const { participantId } = req.params;
+  const validParticipantId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(participantId || '');
+
+  if (!validParticipantId || participantId === userId) {
+    return res.status(400).json({ code: 'VALIDATION_ERROR', message: 'A valid participant is required.' });
+  }
+
+  try {
+    const [[outgoingCount], [incomingCount]] = await Promise.all([
+      Message.update(
+        { senderArchived: true },
+        { where: { senderId: userId, receiverId: participantId, senderDeleted: false, senderArchived: false } },
+      ),
+      Message.update(
+        { receiverArchived: true },
+        { where: { senderId: participantId, receiverId: userId, receiverDeleted: false, receiverArchived: false } },
+      ),
+    ]);
+
+    const unreadCount = await Message.count({
+      where: {
+        receiverId: userId,
+        read: false,
+        receiverDeleted: false,
+        receiverArchived: false,
+      },
+    });
+    const io = getIO();
+    io.to(userId.toString()).emit('conversationArchived', { participantId });
+    io.to(userId.toString()).emit('unreadMessages', { count: unreadCount });
+
+    return res.json({ success: true, archivedMessages: outgoingCount + incomingCount });
+  } catch (error) {
+    console.error('Failed to archive conversation:', error);
+    return res.status(500).json({ code: 'INTERNAL_ERROR', message: 'Failed to archive conversation.' });
   }
 };
 
@@ -391,4 +475,6 @@ module.exports = {
   getUnreadMessageCounts,
   markImageAsViewed,
   deleteMessage,
+  deleteConversation,
+  archiveConversation,
 };

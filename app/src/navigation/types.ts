@@ -8,7 +8,6 @@ export type AuthStackParamList = {
 
 export type MainTabParamList = {
   Descubrir: undefined;
-  Favoritos: undefined;
   Solicitudes: undefined;
   Chats: undefined;
   Cuenta: undefined;
@@ -17,7 +16,11 @@ export type MainTabParamList = {
 export type RootStackParamList = {
   Tabs: NavigatorScreenParams<MainTabParamList>;
   Profile: { userId: string };
+  InterestedProfiles: undefined;
+  ReceivedLikes: undefined;
+  BlockedUsers: undefined;
+  SentPhotoRequests: undefined;
   EditProfile: undefined;
-  ChatDetail: { userId: string; name: string; avatar?: string | null };
+  ChatDetail: { userId: string; name: string; avatar?: string | null; initialMessage?: string };
   Legal: { document: 'terms' | 'privacy' };
 };

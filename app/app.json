@@ -13,7 +13,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "Swingers World necesita acceso a tus fotos para completar tu perfil."
+        "CFBundleAllowMixedLocalizations": true,
+        "NSPhotoLibraryUsageDescription": "Swingers World needs access to your photos to complete your profile."
       }
     },
     "android": {
@@ -35,7 +36,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Swingers World necesita acceso a tus fotos para completar tu perfil.",
+          "photosPermission": "Swingers World needs access to your photos to complete your profile.",
           "microphonePermission": false
         }
       ],
@@ -49,7 +50,26 @@
           "backgroundColor": "#0B0710"
         }
       ],
-      "expo-font"
-    ]
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Swingers World uses your approximate location to find people near your city."
+        }
+      ],
+      [
+        "expo-localization",
+        {
+          "supportedLocales": {
+            "ios": ["es", "en"],
+            "android": ["es", "en"]
+          }
+        }
+      ]
+    ],
+    "locales": {
+      "es": "./locales/es.json",
+      "en": "./locales/en.json"
+    }
   }
 }

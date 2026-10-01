@@ -5,7 +5,9 @@ import { Screen } from '../components/Screen';
 import { AppField } from '../components/AppField';
 import { AppButton } from '../components/AppButton';
 import { useAuth } from '../context/AuthContext';
-import { getErrorMessage } from '../lib/api';
+import { getApiErrorCode, getErrorMessage } from '../lib/api';
+import { useLanguage } from '../context/LanguageContext';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { colors, radius, spacing } from '../theme/colors';
 import type { AuthStackParamList } from '../navigation/types';
 
@@ -13,19 +15,31 @@ type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export function LoginScreen({ navigation }: Props) {
   const { signIn } = useAuth();
+  const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
-    if (!email.trim() || !password) return setError('Completá tu correo y contraseña.');
+    const nextErrors: typeof fieldErrors = {};
+    if (!email.trim()) nextErrors.email = t('validation.required');
+    else if (!/^\S+@\S+\.\S+$/.test(email.trim())) nextErrors.email = t('validation.email');
+    if (!password) nextErrors.password = t('validation.required');
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return;
     setLoading(true);
     setError('');
     try {
       await signIn(email, password);
     } catch (value) {
-      setError(getErrorMessage(value, 'No pudimos iniciar sesión.'));
+      const message = getErrorMessage(value, t('login.failed'), t);
+      if (getApiErrorCode(value) === 'INVALID_CREDENTIALS') {
+        setFieldErrors({ password: message });
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -35,20 +49,21 @@ export function LoginScreen({ navigation }: Props) {
     <Screen scroll contentStyle={styles.screen}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
         <View style={styles.brand}>
+          <LanguageSwitcher compact />
           <Image source={require('../../assets/swingers-world.png')} style={styles.logo} />
-          <Text style={styles.welcome}>Tu mundo. Tus reglas.</Text>
-          <Text style={styles.subtitle}>Conectá con personas reales en un espacio privado y respetuoso.</Text>
+          <Text style={styles.welcome}>{t('login.tagline')}</Text>
+          <Text style={styles.subtitle}>{t('login.subtitle')}</Text>
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.title}>Bienvenido</Text>
-          <AppField label="Correo electrónico" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
-          <AppField label="Contraseña" value={password} onChangeText={setPassword} secureTextEntry autoComplete="current-password" />
+          <Text style={styles.title}>{t('login.welcome')}</Text>
+          <AppField label={t('login.email')} value={email} error={fieldErrors.email} onChangeText={(value) => { setEmail(value); setFieldErrors((current) => ({ ...current, email: undefined })); setError(''); }} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
+          <AppField label={t('login.password')} value={password} error={fieldErrors.password} onChangeText={(value) => { setPassword(value); setFieldErrors((current) => ({ ...current, password: undefined })); setError(''); }} secureTextEntry autoComplete="current-password" />
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <AppButton title="Ingresar" onPress={submit} loading={loading} />
+          <AppButton title={t('login.submit')} onPress={submit} loading={loading} />
           <Pressable onPress={() => navigation.navigate('Register')} style={styles.registerLink}>
-            <Text style={styles.muted}>¿Todavía no tenés cuenta? </Text>
-            <Text style={styles.link}>Crear cuenta</Text>
+            <Text style={styles.muted}>{t('login.noAccount')}</Text>
+            <Text style={styles.link}>{t('login.createAccount')}</Text>
           </Pressable>
         </View>
       </KeyboardAvoidingView>

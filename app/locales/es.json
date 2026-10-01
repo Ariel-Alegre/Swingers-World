@@ -1,0 +1,10 @@
+{
+  "ios": {
+    "CFBundleDisplayName": "Swingers World",
+    "NSPhotoLibraryUsageDescription": "Swingers World necesita acceso a tus fotos para completar tu perfil.",
+    "NSLocationWhenInUseUsageDescription": "Swingers World usa tu ubicación aproximada para encontrar personas cerca de tu ciudad."
+  },
+  "android": {
+    "app_name": "Swingers World"
+  }
+}

@@ -11,6 +11,7 @@ dist-check-native/
 dist-sdk57-android/
 dist-sdk57-web/
 dist-sdk57-ios/
+dist-sdk57-bilingual/
 web-build/
 expo-env.d.ts
 
