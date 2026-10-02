@@ -21,12 +21,17 @@ export type ApiErrorTranslationKey =
   | 'error.timeout'
   | 'error.invalidCredentials'
   | 'error.emailRegistered'
+  | 'error.verificationInvalid'
+  | 'error.verificationExpired'
+  | 'error.verificationRequired'
+  | 'error.emailDelivery'
   | 'error.validation'
   | 'error.unauthorized'
   | 'error.forbidden'
   | 'error.notFound'
   | 'error.conflict'
   | 'error.tooLarge'
+  | 'error.unsupportedMedia'
   | 'error.rateLimited'
   | 'error.storageUnavailable'
   | 'error.profileIncomplete'
@@ -37,6 +42,13 @@ type ErrorTranslator = (key: ApiErrorTranslationKey) => string;
 const codeTranslationKeys: Record<string, ApiErrorTranslationKey> = {
   INVALID_CREDENTIALS: 'error.invalidCredentials',
   EMAIL_ALREADY_REGISTERED: 'error.emailRegistered',
+  VERIFICATION_CODE_INVALID: 'error.verificationInvalid',
+  VERIFICATION_CODE_EXPIRED: 'error.verificationExpired',
+  VERIFICATION_TOO_MANY_ATTEMPTS: 'error.rateLimited',
+  VERIFICATION_CODE_COOLDOWN: 'error.rateLimited',
+  EMAIL_VERIFICATION_REQUIRED: 'error.verificationRequired',
+  EMAIL_DELIVERY_UNAVAILABLE: 'error.emailDelivery',
+  EMAIL_DELIVERY_FAILED: 'error.emailDelivery',
   VALIDATION_ERROR: 'error.validation',
   INVALID_PROFILE_TYPE: 'error.validation',
   PROFILE_DETAILS_REQUIRED: 'error.validation',
@@ -48,6 +60,7 @@ const codeTranslationKeys: Record<string, ApiErrorTranslationKey> = {
   CONFLICT: 'error.conflict',
   PAYLOAD_TOO_LARGE: 'error.tooLarge',
   FILE_TOO_LARGE: 'error.tooLarge',
+  UNSUPPORTED_MEDIA_TYPE: 'error.unsupportedMedia',
   RATE_LIMITED: 'error.rateLimited',
   STORAGE_NOT_CONFIGURED: 'error.storageUnavailable',
   PROFILE_INCOMPLETE: 'error.profileIncomplete',
@@ -62,6 +75,7 @@ const statusTranslationKeys: Record<number, ApiErrorTranslationKey> = {
   404: 'error.notFound',
   409: 'error.conflict',
   413: 'error.tooLarge',
+  415: 'error.unsupportedMedia',
   429: 'error.rateLimited',
   500: 'error.server',
   502: 'error.server',

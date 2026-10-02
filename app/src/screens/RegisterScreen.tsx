@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { AppButton } from '../components/AppButton';
@@ -9,6 +9,8 @@ import { colors, radius, spacing } from '../theme/colors';
 import type { AuthStackParamList } from '../navigation/types';
 import { useLanguage } from '../context/LanguageContext';
 import { AppSelect } from '../components/AppSelect';
+import { useAuth } from '../context/AuthContext';
+import type { LoginResponse } from '../types/api';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 type ProfileType = 'single' | 'couple';
@@ -18,7 +20,9 @@ type RegisterField = 'profileType' | 'firstName' | 'lastName' | 'email' | 'passw
 type RegisterErrors = Partial<Record<RegisterField, string>>;
 
 export function RegisterScreen({ navigation }: Props) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { establishSession } = useAuth();
+  const verificationInFlight = useRef(false);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '' });
   const [profileType, setProfileType] = useState<ProfileType | ''>('');
   const [gender, setGender] = useState<Gender | ''>('');
@@ -30,6 +34,16 @@ export function RegisterScreen({ navigation }: Props) {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<RegisterErrors>({});
   const [acceptedError, setAcceptedError] = useState('');
+  const [verificationPending, setVerificationPending] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationCodeError, setVerificationCodeError] = useState('');
+  const [resendSeconds, setResendSeconds] = useState(0);
+
+  useEffect(() => {
+    if (resendSeconds <= 0) return undefined;
+    const timer = setInterval(() => setResendSeconds((value) => Math.max(0, value - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [resendSeconds]);
   const clearFieldError = (key: RegisterField) => setFieldErrors((current) => ({ ...current, [key]: undefined }));
   const update = (key: keyof typeof form) => (value: string) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -60,7 +74,27 @@ export function RegisterScreen({ navigation }: Props) {
     setLoading(true);
     setError('');
     try {
-      await api.post('/register', {
+      const response = await api.post('/register/verification-code', {
+        email: form.email.trim().toLowerCase(),
+        locale: language,
+      });
+      setVerificationPending(true);
+      setVerificationCode('');
+      setVerificationCodeError('');
+      setResendSeconds(Number(response.data?.resendAfterSeconds) || 60);
+    } catch (value) {
+      const message = getErrorMessage(value, t('register.verificationSendFailed'), t);
+      if (getApiErrorCode(value) === 'EMAIL_ALREADY_REGISTERED') {
+        setFieldErrors((current) => ({ ...current, email: message }));
+      } else {
+        setError(message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const registrationPayload = (emailVerificationToken: string) => ({
         firstName: form.firstName.trim(),
         lastName: form.lastName.trim(),
         email: form.email.trim().toLowerCase(),
@@ -71,15 +105,56 @@ export function RegisterScreen({ navigation }: Props) {
         partnerLastName: profileType === 'couple' ? partnerLastName.trim() : undefined,
         coupleType: profileType === 'couple' ? coupleType : undefined,
         acceptedTerms: true,
+        emailVerificationToken,
+        locale: language,
+  });
+
+  const verifyAndRegister = async (codeOverride?: string) => {
+    if (verificationInFlight.current) return;
+    const enteredCode = codeOverride || verificationCode;
+    if (!/^\d{6}$/.test(enteredCode)) {
+      setVerificationCodeError(t('register.codeInvalid'));
+      return;
+    }
+    verificationInFlight.current = true;
+    setLoading(true);
+    setError('');
+    setVerificationCodeError('');
+    try {
+      const verification = await api.post('/register/verify-email', {
+        email: form.email.trim().toLowerCase(),
+        code: enteredCode,
       });
-      navigation.replace('Login');
+      const registration = await api.post<LoginResponse>('/register', registrationPayload(verification.data.verificationToken));
+      await establishSession(registration.data);
     } catch (value) {
       const message = getErrorMessage(value, t('register.failed'), t);
-      if (getApiErrorCode(value) === 'EMAIL_ALREADY_REGISTERED') {
-        setFieldErrors((current) => ({ ...current, email: message }));
+      const code = getApiErrorCode(value);
+      if (['VERIFICATION_CODE_INVALID', 'VERIFICATION_CODE_EXPIRED', 'VERIFICATION_TOO_MANY_ATTEMPTS'].includes(code || '')) {
+        setVerificationCodeError(message);
       } else {
         setError(message);
       }
+    } finally {
+      verificationInFlight.current = false;
+      setLoading(false);
+    }
+  };
+
+  const resendCode = async () => {
+    if (resendSeconds > 0 || loading) return;
+    setLoading(true);
+    setError('');
+    try {
+      const response = await api.post('/register/verification-code', {
+        email: form.email.trim().toLowerCase(),
+        locale: language,
+      });
+      setVerificationCode('');
+      setVerificationCodeError('');
+      setResendSeconds(Number(response.data?.resendAfterSeconds) || 60);
+    } catch (value) {
+      setError(getErrorMessage(value, t('register.verificationSendFailed'), t));
     } finally {
       setLoading(false);
     }
@@ -94,6 +169,44 @@ export function RegisterScreen({ navigation }: Props) {
           <Text style={styles.subtitle}>{t('register.adultsOnly')}</Text>
         </View>
         <View style={styles.form}>
+          {verificationPending ? (
+            <>
+              <Text style={styles.verificationTitle}>{t('register.verifyTitle')}</Text>
+              <Text style={styles.verificationText}>{t('register.verifyBody').replace('{{email}}', form.email.trim().toLowerCase())}</Text>
+              <AppField
+                label={t('register.verificationCode')}
+                value={verificationCode}
+                error={verificationCodeError}
+                onChangeText={(value) => {
+                  const sanitized = value.replace(/\D/g, '').slice(0, 6);
+                  setVerificationCode(sanitized);
+                  setVerificationCodeError('');
+                  setError('');
+                  if (sanitized.length === 6) {
+                    setTimeout(() => { void verifyAndRegister(sanitized); }, 0);
+                  }
+                }}
+                keyboardType="number-pad"
+                textContentType="oneTimeCode"
+                autoComplete="one-time-code"
+                maxLength={6}
+                style={styles.codeInput}
+              />
+              {error ? <Text style={styles.error}>{error}</Text> : null}
+              <AppButton title={t('register.verifyAndCreate')} onPress={verifyAndRegister} loading={loading} />
+              <Pressable disabled={resendSeconds > 0 || loading} onPress={resendCode}>
+                <Text style={[styles.secondaryAction, resendSeconds > 0 && styles.disabledAction]}>
+                  {resendSeconds > 0
+                    ? t('register.resendIn').replace('{{seconds}}', String(resendSeconds))
+                    : t('register.resend')}
+                </Text>
+              </Pressable>
+              <Pressable onPress={() => { setVerificationPending(false); setVerificationCode(''); setError(''); }}>
+                <Text style={styles.back}>{t('register.changeEmail')}</Text>
+              </Pressable>
+            </>
+          ) : (
+          <>
           <AppSelect
             label={t('register.profileType')}
             value={profileType}
@@ -155,8 +268,10 @@ export function RegisterScreen({ navigation }: Props) {
             <Pressable onPress={() => navigation.navigate('Legal', { document: 'privacy' })}><Text style={styles.legalLink}>{t('register.viewPrivacy')}</Text></Pressable>
           </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <AppButton title={t('register.submit')} onPress={submit} loading={loading} />
+          <AppButton title={t('register.sendCode')} onPress={submit} loading={loading} />
           <Pressable onPress={() => navigation.goBack()}><Text style={styles.back}>{t('register.haveAccount')}</Text></Pressable>
+          </>
+          )}
         </View>
       </KeyboardAvoidingView>
     </Screen>
@@ -180,4 +295,9 @@ const styles = StyleSheet.create({
   legalLink: { color: colors.goldSoft, fontSize: 13, fontWeight: '700' },
   separator: { color: colors.textMuted },
   back: { color: colors.goldSoft, fontWeight: '700', textAlign: 'center', padding: spacing.sm },
+  verificationTitle: { color: colors.text, fontSize: 24, fontWeight: '900' },
+  verificationText: { color: colors.textMuted, lineHeight: 21 },
+  codeInput: { textAlign: 'center', fontSize: 24, fontWeight: '800', letterSpacing: 8 },
+  secondaryAction: { color: colors.goldSoft, fontWeight: '700', textAlign: 'center', padding: spacing.sm },
+  disabledAction: { color: colors.textMuted },
 });

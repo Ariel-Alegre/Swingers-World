@@ -38,7 +38,11 @@ export type User = {
   country?: string | null;
   backgroundColor?: string | null;
   status?: string;
+  role?: string;
   plan?: string | null;
+  subscriptionStatus?: string | null;
+  currentPeriodEnd?: string | null;
+  onboardingCompletedAt?: string | null;
   profileComplete?: boolean;
   canViewPrivatePhotos?: boolean;
   photoRequestStatus?: 'pending' | 'accepted' | null;
@@ -59,7 +63,7 @@ export type PhotoRequest = {
 
 export type AppNotification = {
   id: string;
-  type: 'photo_request' | 'photo_request_accepted' | 'profile_incomplete';
+  type: 'photo_request' | 'photo_request_accepted' | 'photo_request_rejected' | 'photo_request_pending' | 'like_received' | 'profile_incomplete';
   description?: string | null;
   read: boolean;
   relatedId?: string | null;
@@ -72,6 +76,7 @@ export type Conversation = {
   lastName: string;
   avatar?: string | null;
   lastMessage?: string | null;
+  lastMessageType?: 'text' | 'image' | 'audio';
   lastMessageAt?: string;
   isIncoming?: boolean;
   read?: boolean;
@@ -82,11 +87,15 @@ export type Message = {
   id: string;
   content?: string | null;
   imageUrl?: string | null;
+  audioUrl?: string | null;
+  audioDurationMs?: number | null;
+  viewOnce?: boolean;
+  viewed?: boolean;
   senderId: string;
   receiverId: string;
   sentAt: string;
   read?: boolean;
   deliveredAt?: string | null;
   readAt?: string | null;
-  type?: 'text' | 'image';
+  type?: 'text' | 'image' | 'audio';
 };

@@ -92,6 +92,9 @@ async function createBaseProfile(userId, firstName, lastName) {
 
 function mapRevenueCatProductToPlan(productIdentifier) {
   const productMap = {
+    'com.swingers.world.premium:monthly': 'monthly',
+    'com.swingers.world.premium:six-months': 'six_months',
+    'com.swingers.world.premium:annual': 'annual',
     'com.swingers.world.premium.monthly': 'monthly',
     'com.swingers.world.premium.six_months': 'six_months',
     'com.swingers.world.premium.annual': 'annual',
@@ -100,8 +103,8 @@ function mapRevenueCatProductToPlan(productIdentifier) {
     'com.swingers.vip.annual': 'annual',
   };
 
-  const normalizedIdentifier = String(productIdentifier || '').split(':')[0];
-  return productMap[normalizedIdentifier] || null;
+  const normalizedIdentifier = String(productIdentifier || '').trim();
+  return productMap[normalizedIdentifier] || productMap[normalizedIdentifier.split(':')[0]] || null;
 }
 
 function getAuthenticatedUserId(req) {

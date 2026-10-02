@@ -1,12 +1,14 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Screen } from '../components/Screen';
 import { Header } from '../components/Header';
+import { TabHeaderActions } from '../components/TabHeaderActions';
 import { EmptyState } from '../components/EmptyState';
 import { UserAvatar } from '../components/UserAvatar';
 import { AppButton } from '../components/AppButton';
 import { api, getErrorMessage } from '../lib/api';
+import { getSocket } from '../lib/socket';
 import { colors, radius, spacing } from '../theme/colors';
 import type { PhotoRequest } from '../types/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -35,6 +37,26 @@ export function RequestsScreen() {
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
 
+  useEffect(() => {
+    let active = true;
+    let activeSocket: Awaited<ReturnType<typeof getSocket>> | null = null;
+
+    const handleRequestsChanged = () => {
+      if (active) void load(true);
+    };
+
+    void getSocket().then((socket) => {
+      if (!active) return;
+      activeSocket = socket;
+      socket.on('photoRequestsChanged', handleRequestsChanged);
+    }).catch(() => undefined);
+
+    return () => {
+      active = false;
+      activeSocket?.off('photoRequestsChanged', handleRequestsChanged);
+    };
+  }, [load]);
+
   const respond = async (request: PhotoRequest, decision: 'accepted' | 'rejected') => {
     setBusyId(request.id);
     try {
@@ -50,7 +72,7 @@ export function RequestsScreen() {
 
   return (
     <Screen>
-      <Header title={t('requests.title')} subtitle={t('requests.subtitle')} />
+      <Header title={t('requests.title')} subtitle={t('requests.subtitle')} action={<TabHeaderActions />} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator color={colors.gold} /> : (
         <FlatList

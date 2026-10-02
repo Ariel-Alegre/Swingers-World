@@ -4,9 +4,13 @@ import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider } from './src/context/AuthContext';
+import { SubscriptionProvider } from './src/context/SubscriptionContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { colors } from './src/theme/colors';
+import { navigationRef } from './src/lib/navigation';
+// TEMPORARILY DISABLED: remote push notifications require a development build.
+// import { PushNotificationManager } from './src/components/PushNotificationManager';
 
 const navigationTheme = {
   ...DarkTheme,
@@ -25,10 +29,13 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <LanguageProvider>
-        <NavigationContainer theme={navigationTheme}>
+        <NavigationContainer ref={navigationRef} theme={navigationTheme}>
           <AuthProvider>
-            <StatusBar style="light" />
-            <RootNavigator />
+            <SubscriptionProvider>
+              <StatusBar style="light" />
+              {/* <PushNotificationManager /> */}
+              <RootNavigator />
+            </SubscriptionProvider>
           </AuthProvider>
         </NavigationContainer>
       </LanguageProvider>

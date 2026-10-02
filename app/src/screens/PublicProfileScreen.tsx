@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { ProfileCompletionModal } from '../components/ProfileCompletionModal';
+import { AppButton } from '../components/AppButton';
+import { AppField } from '../components/AppField';
 import { useAuth } from '../context/AuthContext';
 import { api, getErrorMessage } from '../lib/api';
 import { colors, radius, spacing } from '../theme/colors';
@@ -14,6 +16,8 @@ import type { RootStackParamList } from '../navigation/types';
 import { useLanguage } from '../context/LanguageContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
+type ReportReason = 'inappropriate_content' | 'fake_profile' | 'harassment' | 'suspected_underage' | 'spam_or_scam' | 'other';
+type ReportReasonTranslationKey = 'profile.reportInappropriate' | 'profile.reportFake' | 'profile.reportHarassment' | 'profile.reportUnderage' | 'profile.reportSpam' | 'profile.reportOther';
 
 export function PublicProfileScreen({ route, navigation }: Props) {
   const { t, formatProfileValue } = useLanguage();
@@ -29,6 +33,12 @@ export function PublicProfileScreen({ route, navigation }: Props) {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [error, setError] = useState('');
   const [profileGateOpen, setProfileGateOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState<ReportReason | ''>('');
+  const [reportDetails, setReportDetails] = useState('');
+  const [reportReasonError, setReportReasonError] = useState('');
+  const [reportDetailsError, setReportDetailsError] = useState('');
+  const [reportSubmitting, setReportSubmitting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,23 +74,37 @@ export function PublicProfileScreen({ route, navigation }: Props) {
     }
   };
 
-  const report = () => Alert.alert(
-    t('profile.reportTitle'),
-    t('profile.reportMessage'),
-    [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('profile.sendReport'), onPress: () => void (async () => {
-          try {
-            await api.post('/reports', { reportedUserId: route.params.userId, reason: 'inappropriate_content', source: 'profile' });
-            Alert.alert(t('profile.reportReceived'), t('profile.reportThanks'));
-          } catch (value) {
-            Alert.alert(t('profile.reportFailed'), getErrorMessage(value, t('error.generic'), t));
-          }
-        })(),
-      },
-    ],
-  );
+  const openReport = () => {
+    setReportReason('');
+    setReportDetails('');
+    setReportReasonError('');
+    setReportDetailsError('');
+    setReportOpen(true);
+  };
+
+  const submitReport = async () => {
+    const reasonError = reportReason ? '' : t('validation.required');
+    const detailsError = reportReason === 'other' && !reportDetails.trim() ? t('profile.reportOtherRequired') : '';
+    setReportReasonError(reasonError);
+    setReportDetailsError(detailsError);
+    if (reasonError || detailsError || !reportReason) return;
+
+    setReportSubmitting(true);
+    try {
+      await api.post('/reports', {
+        reportedUserId: route.params.userId,
+        reason: reportReason,
+        details: reportReason === 'other' ? reportDetails.trim() : undefined,
+        source: 'profile',
+      });
+      setReportOpen(false);
+      Alert.alert(t('profile.reportReceived'), t('profile.reportThanks'));
+    } catch (value) {
+      Alert.alert(t('profile.reportFailed'), getErrorMessage(value, t('error.generic'), t));
+    } finally {
+      setReportSubmitting(false);
+    }
+  };
 
   const block = () => Alert.alert(
     t('profile.blockTitle'),
@@ -149,7 +173,7 @@ export function PublicProfileScreen({ route, navigation }: Props) {
           </Pressable>
           {safetyMenuOpen ? (
             <View style={styles.safetyMenu}>
-              <Pressable onPress={() => { setSafetyMenuOpen(false); report(); }} style={styles.safetyMenuItem}>
+              <Pressable onPress={() => { setSafetyMenuOpen(false); openReport(); }} style={styles.safetyMenuItem}>
                 <Ionicons name="flag-outline" size={20} color={colors.textMuted} />
                 <Text style={styles.safetyMenuText}>{t('profile.report')}</Text>
               </Pressable>
@@ -305,6 +329,74 @@ export function PublicProfileScreen({ route, navigation }: Props) {
           navigation.navigate('EditProfile');
         }}
       />
+      <Modal transparent animationType="fade" visible={reportOpen} onRequestClose={() => !reportSubmitting && setReportOpen(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.reportOverlay}>
+          <Pressable accessibilityRole="button" accessibilityLabel={t('common.cancel')} disabled={reportSubmitting} onPress={() => setReportOpen(false)} style={styles.reportBackdrop} />
+          <View style={styles.reportSheet}>
+            <View style={styles.reportHeader}>
+              <View style={styles.reportHeaderCopy}>
+                <Text style={styles.reportTitle}>{t('profile.reportReasonTitle')}</Text>
+                <Text style={styles.reportHint}>{t('profile.reportReasonHint')}</Text>
+              </View>
+              <Pressable accessibilityRole="button" accessibilityLabel={t('common.cancel')} disabled={reportSubmitting} onPress={() => setReportOpen(false)} style={styles.reportClose}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </Pressable>
+            </View>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={[styles.reportReasons, Boolean(reportReasonError) && styles.reportReasonsInvalid]}>
+                {([
+                  ['inappropriate_content', 'profile.reportInappropriate'],
+                  ['fake_profile', 'profile.reportFake'],
+                  ['harassment', 'profile.reportHarassment'],
+                  ['suspected_underage', 'profile.reportUnderage'],
+                  ['spam_or_scam', 'profile.reportSpam'],
+                  ['other', 'profile.reportOther'],
+                ] as Array<[ReportReason, ReportReasonTranslationKey]>).map(([value, label]) => {
+                  const selected = reportReason === value;
+                  return (
+                    <Pressable
+                      key={value}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected }}
+                      onPress={() => {
+                        setReportReason(value);
+                        setReportReasonError('');
+                        if (value !== 'other') {
+                          setReportDetails('');
+                          setReportDetailsError('');
+                        }
+                      }}
+                      style={({ pressed }) => [styles.reportReason, selected && styles.reportReasonSelected, pressed && styles.reportReasonPressed]}
+                    >
+                      <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={22} color={selected ? colors.primary : colors.textMuted} />
+                      <Text style={[styles.reportReasonText, selected && styles.reportReasonTextSelected]}>{t(label)}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              {reportReasonError ? <Text style={styles.reportError}>{reportReasonError}</Text> : null}
+              {reportReason === 'other' ? (
+                <View style={styles.reportDetails}>
+                  <AppField
+                    label={t('profile.reportOtherLabel')}
+                    placeholder={t('profile.reportOtherPlaceholder')}
+                    value={reportDetails}
+                    error={reportDetailsError}
+                    onChangeText={(value) => { setReportDetails(value); setReportDetailsError(''); }}
+                    maxLength={1000}
+                    multiline
+                  />
+                </View>
+              ) : null}
+              <Text style={styles.reportPrivacy}>{t('profile.reportMessage')}</Text>
+              <View style={styles.reportActions}>
+                <AppButton title={t('common.cancel')} variant="secondary" disabled={reportSubmitting} onPress={() => setReportOpen(false)} style={styles.reportAction} />
+                <AppButton title={t('profile.sendReport')} loading={reportSubmitting} onPress={() => void submitReport()} style={styles.reportAction} />
+              </View>
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -361,4 +453,24 @@ const styles = StyleSheet.create({
   galleryClose: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.58)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)' },
   fullscreenSlide: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   fullscreenImage: { width: '100%', height: '100%' },
+  reportOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.68)' },
+  reportBackdrop: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
+  reportSheet: { maxHeight: '88%', padding: spacing.lg, paddingBottom: spacing.xl, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, backgroundColor: colors.surfaceRaised, borderWidth: 1, borderColor: colors.border },
+  reportHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, marginBottom: spacing.md },
+  reportHeaderCopy: { flex: 1 },
+  reportTitle: { color: colors.text, fontSize: 21, fontWeight: '900' },
+  reportHint: { color: colors.textMuted, lineHeight: 20, marginTop: 4 },
+  reportClose: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  reportReasons: { overflow: 'hidden', borderWidth: 1, borderColor: colors.border, borderRadius: radius.md },
+  reportReasonsInvalid: { borderColor: colors.danger },
+  reportReason: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+  reportReasonSelected: { backgroundColor: 'rgba(245,40,135,0.10)' },
+  reportReasonPressed: { opacity: 0.68 },
+  reportReasonText: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '600' },
+  reportReasonTextSelected: { color: colors.white, fontWeight: '800' },
+  reportError: { color: colors.danger, fontSize: 12, marginTop: spacing.xs },
+  reportDetails: { marginTop: spacing.md },
+  reportPrivacy: { color: colors.textMuted, fontSize: 12, lineHeight: 18, marginTop: spacing.md },
+  reportActions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+  reportAction: { flex: 1 },
 });

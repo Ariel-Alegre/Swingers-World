@@ -24,6 +24,9 @@ import { LegalScreen } from '../screens/LegalScreen';
 import { LocationSync } from '../components/LocationSync';
 import { RealtimeConnection } from '../components/RealtimeConnection';
 import { ProfileCompletionModal } from '../components/ProfileCompletionModal';
+import { FirstLoginOnboarding } from '../components/FirstLoginOnboarding';
+import { SubscriptionScreen } from '../screens/SubscriptionScreen';
+import { useSubscription } from '../context/SubscriptionContext';
 import { api } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { colors } from '../theme/colors';
@@ -46,6 +49,7 @@ function MainTabs({ navigation }: MainTabsProps) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [hasPendingPhotoRequests, setHasPendingPhotoRequests] = useState(false);
   const [completionModalDismissed, setCompletionModalDismissed] = useState(false);
 
   useEffect(() => {
@@ -57,7 +61,29 @@ function MainTabs({ navigation }: MainTabsProps) {
     let active = true;
     let activeSocket: Awaited<ReturnType<typeof getSocket>> | null = null;
 
-    const updateUnreadCount = ({ count }: { count: number }) => setUnreadMessageCount(Number(count) || 0);
+    const updateUnreadCount = ({ count }: { count: number }) => {
+      const nextCount = Number(count) || 0;
+      setUnreadMessageCount(nextCount);
+      // Native application-icon badges are re-enabled with PushNotificationManager.
+    };
+
+    const refreshPendingPhotoRequests = async () => {
+      try {
+        const { data } = await api.get<Array<{ status?: string }>>('/photo-requests');
+        if (!active) return;
+        setHasPendingPhotoRequests(Array.isArray(data) && data.some((request) => request.status === 'pending'));
+      } catch {
+        // Keep the current indicator if the refresh temporarily fails.
+      }
+    };
+
+    const handleNewPhotoRequest = () => {
+      if (active) setHasPendingPhotoRequests(true);
+    };
+
+    const handlePhotoRequestsChanged = () => {
+      void refreshPendingPhotoRequests();
+    };
 
     void api.get<Array<{ count: number | string }>>('/unread-message-counts')
       .then(({ data }) => {
@@ -67,15 +93,21 @@ function MainTabs({ navigation }: MainTabsProps) {
       })
       .catch(() => undefined);
 
+    void refreshPendingPhotoRequests();
+
     void getSocket().then((socket) => {
       if (!active) return;
       activeSocket = socket;
       socket.on('unreadMessages', updateUnreadCount);
+      socket.on('newPhotoRequest', handleNewPhotoRequest);
+      socket.on('photoRequestsChanged', handlePhotoRequestsChanged);
     }).catch(() => undefined);
 
     return () => {
       active = false;
       activeSocket?.off('unreadMessages', updateUnreadCount);
+      activeSocket?.off('newPhotoRequest', handleNewPhotoRequest);
+      activeSocket?.off('photoRequestsChanged', handlePhotoRequestsChanged);
     };
   }, [user?.id]);
 
@@ -87,7 +119,10 @@ function MainTabs({ navigation }: MainTabsProps) {
         tabBarIcon: ({ color, size }) => (
           <View style={[styles.tabIcon, { width: size, height: size }]}>
             <Ionicons name={tabIcons[route.name]} color={color} size={size} />
-            {route.name === 'Chats' && unreadMessageCount > 0 ? <View style={styles.unreadDot} /> : null}
+            {(route.name === 'Chats' && unreadMessageCount > 0) ||
+            (route.name === 'Solicitudes' && hasPendingPhotoRequests) ? (
+              <View style={styles.unreadDot} />
+            ) : null}
           </View>
         ),
         tabBarActiveTintColor: colors.gold,
@@ -106,19 +141,21 @@ function MainTabs({ navigation }: MainTabsProps) {
       <Tab.Screen name="Cuenta" component={AccountScreen} options={{ tabBarLabel: t('nav.account') }} />
     </Tab.Navigator>
       <ProfileCompletionModal
-        visible={user?.profileComplete === false && !completionModalDismissed}
+        visible={user?.onboardingCompletedAt !== null && user?.profileComplete === false && !completionModalDismissed}
         onClose={() => setCompletionModalDismissed(true)}
         onEditProfile={() => {
           setCompletionModalDismissed(true);
           navigation.navigate('EditProfile');
         }}
       />
+      <FirstLoginOnboarding />
     </>
   );
 }
 
 export function RootNavigator() {
   const { user, loading } = useAuth();
+  const subscription = useSubscription();
   const { loading: languageLoading, t } = useLanguage();
 
   if (loading || languageLoading) {
@@ -139,6 +176,17 @@ export function RootNavigator() {
       </AuthStack.Navigator>
     );
   }
+
+  if (subscription.loading) {
+    return (
+      <View style={styles.loading}>
+        <Image source={require('../../assets/swingers-world.png')} style={styles.logo} />
+        <ActivityIndicator color={colors.gold} size="large" />
+      </View>
+    );
+  }
+
+  if (!subscription.hasAccess) return <SubscriptionScreen />;
 
   return (
     <>

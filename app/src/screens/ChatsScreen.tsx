@@ -6,6 +6,7 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Screen } from '../components/Screen';
 import { Header } from '../components/Header';
+import { TabHeaderActions } from '../components/TabHeaderActions';
 import { EmptyState } from '../components/EmptyState';
 import { UserAvatar } from '../components/UserAvatar';
 import { useAuth } from '../context/AuthContext';
@@ -150,7 +151,7 @@ export function ChatsScreen({ navigation }: { navigation: Navigation }) {
 
   return (
     <Screen>
-      <Header title={t('chats.title')} subtitle={t('chats.subtitle')} />
+      <Header title={t('chats.title')} subtitle={t('chats.subtitle')} action={<TabHeaderActions />} />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? <ActivityIndicator color={colors.gold} /> : (
         <FlatList
@@ -181,7 +182,9 @@ export function ChatsScreen({ navigation }: { navigation: Navigation }) {
                 <UserAvatar uri={item.avatar} name={name} size={58} />
                 <View style={styles.copy}>
                   <View style={styles.nameRow}><Text style={styles.name}>{name}</Text>{(item.unreadCount || 0) > 0 ? <View style={styles.dot} /> : null}</View>
-                  <Text numberOfLines={1} style={[styles.message, (item.unreadCount || 0) > 0 && styles.unreadMessage, typing && styles.typing]}>{typing ? t('chat.typing') : item.lastMessage || t('common.image')}</Text>
+                  <Text numberOfLines={1} style={[styles.message, (item.unreadCount || 0) > 0 && styles.unreadMessage, typing && styles.typing]}>
+                    {typing ? t('chat.typing') : item.lastMessage || (item.lastMessageType === 'audio' ? t('chat.audio') : t('common.image'))}
+                  </Text>
                 </View>
                 {processingParticipantId === item.participantId ? <ActivityIndicator size="small" color={colors.gold} /> : null}
               </Pressable>

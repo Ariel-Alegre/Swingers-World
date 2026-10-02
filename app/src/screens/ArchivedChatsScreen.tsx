@@ -138,7 +138,9 @@ export function ArchivedChatsScreen({ navigation }: Props) {
                     <Text style={styles.name}>{name}</Text>
                     {(item.unreadCount || 0) > 0 ? <View style={styles.dot} /> : null}
                   </View>
-                  <Text numberOfLines={1} style={[styles.message, (item.unreadCount || 0) > 0 && styles.unreadMessage]}>{item.lastMessage || t('common.image')}</Text>
+                  <Text numberOfLines={1} style={[styles.message, (item.unreadCount || 0) > 0 && styles.unreadMessage]}>
+                    {item.lastMessage || (item.lastMessageType === 'audio' ? t('chat.audio') : t('common.image'))}
+                  </Text>
                 </View>
                 {processingParticipantId === item.participantId ? <ActivityIndicator size="small" color={colors.gold} /> : null}
               </Pressable>

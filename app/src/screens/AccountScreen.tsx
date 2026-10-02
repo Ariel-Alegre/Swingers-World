@@ -6,6 +6,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Header } from '../components/Header';
+import { TabHeaderActions } from '../components/TabHeaderActions';
 import { AppButton } from '../components/AppButton';
 import { UserAvatar } from '../components/UserAvatar';
 import { useAuth } from '../context/AuthContext';
@@ -14,12 +15,14 @@ import { colors, radius, spacing } from '../theme/colors';
 import type { MainTabParamList, RootStackParamList } from '../navigation/types';
 import { useLanguage } from '../context/LanguageContext';
 import { LanguageSwitcher } from '../components/LanguageSwitcher';
+import { useSubscription } from '../context/SubscriptionContext';
 
 type Navigation = CompositeNavigationProp<BottomTabNavigationProp<MainTabParamList, 'Cuenta'>, NativeStackNavigationProp<RootStackParamList>>;
 
 export function AccountScreen({ navigation }: { navigation: Navigation }) {
   const { user, signOut } = useAuth();
   const { t, formatProfileValue } = useLanguage();
+  const { manage } = useSubscription();
   const [deleting, setDeleting] = useState(false);
   if (!user) return null;
   const profile = user.Profile;
@@ -49,7 +52,7 @@ export function AccountScreen({ navigation }: { navigation: Navigation }) {
 
   return (
     <Screen scroll>
-      <Header title={t('account.title')} subtitle={t('account.subtitle')} />
+      <Header title={t('account.title')} subtitle={t('account.subtitle')} action={<TabHeaderActions />} />
       <View style={styles.profileCard}>
         {photo ? <Image source={{ uri: photo }} style={styles.cover} /> : <UserAvatar name={name} size={110} />}
         <Text style={styles.name}>{name}</Text>
@@ -66,6 +69,9 @@ export function AccountScreen({ navigation }: { navigation: Navigation }) {
       </Pressable>
       <Pressable onPress={() => navigation.navigate('Legal', { document: 'privacy' })} style={[styles.menuItem, styles.nextItem]}>
         <Ionicons name="document-text-outline" size={22} color={colors.gold} /><Text style={styles.menuText}>{t('account.privacyTerms')}</Text><Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+      </Pressable>
+      <Pressable onPress={() => void manage()} style={[styles.menuItem, styles.nextItem]}>
+        <Ionicons name="card-outline" size={22} color={colors.gold} /><Text style={styles.menuText}>{t('subscription.manage')}</Text><Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
       </Pressable>
       <LanguageSwitcher />
       <View style={styles.privacyCard}>

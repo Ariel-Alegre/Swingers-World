@@ -14,14 +14,20 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "CFBundleAllowMixedLocalizations": true,
-        "NSPhotoLibraryUsageDescription": "Swingers World needs access to your photos to complete your profile."
+        "NSPhotoLibraryUsageDescription": "Swingers World needs access to your photos for your profile and chat.",
+        "CFBundleLocalizations": [
+          "es",
+          "en"
+        ]
       }
     },
     "android": {
       "package": "com.swingers.world",
       "versionCode": 1,
       "permissions": [
-        "INTERNET"
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/swingers-world.png",
@@ -33,11 +39,11 @@
     },
     "plugins": [
       "expo-secure-store",
+      "expo-notifications",
       [
         "expo-image-picker",
         {
-          "photosPermission": "Swingers World needs access to your photos to complete your profile.",
-          "microphonePermission": false
+          "photosPermission": "Swingers World needs access to your photos for your profile and chat."
         }
       ],
       "expo-status-bar",
@@ -61,15 +67,36 @@
         "expo-localization",
         {
           "supportedLocales": {
-            "ios": ["es", "en"],
-            "android": ["es", "en"]
+            "ios": [
+              "es",
+              "en"
+            ],
+            "android": [
+              "es",
+              "en"
+            ]
           }
         }
-      ]
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Swingers World needs microphone access to record voice messages.",
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      "expo-asset"
     ],
     "locales": {
       "es": "./locales/es.json",
       "en": "./locales/en.json"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "81a91717-c11d-4743-8dfb-1c65711eb58b"
+      }
+    },
+    "owner": "ariel-alegre"
   }
 }

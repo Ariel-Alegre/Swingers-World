@@ -1,8 +1,9 @@
 {
   "ios": {
     "CFBundleDisplayName": "Swingers World",
-    "NSPhotoLibraryUsageDescription": "Swingers World needs access to your photos to complete your profile.",
-    "NSLocationWhenInUseUsageDescription": "Swingers World uses your approximate location to find people near your city."
+    "NSPhotoLibraryUsageDescription": "Swingers World needs access to your photos for your profile and chat.",
+    "NSLocationWhenInUseUsageDescription": "Swingers World uses your approximate location to find people near your city.",
+    "NSMicrophoneUsageDescription": "Swingers World needs microphone access to record voice messages."
   },
   "android": {
     "app_name": "Swingers World"
