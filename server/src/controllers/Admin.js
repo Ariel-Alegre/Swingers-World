@@ -283,6 +283,8 @@ module.exports = {
           currentPeriodEnd: null,
           lastPaymentStatus: null,
           acceptedTerms: true,
+          acknowledgedPrivacy: true,
+          legalAcceptedAt: new Date(),
         }, { transaction });
 
         await Profile.create({

@@ -124,6 +124,15 @@ module.exports = (sequelize) => {
       allowNull: false,
       defaultValue: false,
     },
+    acknowledgedPrivacy: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    },
+    legalAcceptedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
 
   }, {
     tableName: 'Users',

@@ -139,7 +139,7 @@ function getAuthenticatedUserId(req) {
 }
 
 async function notifyModerationTeam({ type, reporter, reportedUser, reason, details, source }) {
-  const moderationEmail = process.env.MODERATION_EMAIL || process.env.EMAIL || 'infoswingersvip@gmail.com';
+  const moderationEmail = process.env.MODERATION_EMAIL || process.env.EMAIL || 'swingersworldinfo@gmail.com';
 
   if (!moderationEmail) {
     return;
@@ -375,7 +375,7 @@ webhookStripe: async (req, res) => {
           </div>
 
           <p style="color: #555; font-size: 14px;">
-            Do you have any questions or need assistance? <a href="mailto:info@elaritech.com" style="color: #363683;" target="_blank">Contact us here</a>. Our team is here to help you.
+            Do you have any questions or need assistance? <a href="mailto:swingersworldinfo@gmail.com" style="color: #363683;" target="_blank">Contact us here</a>. Our team is here to help you.
           </p>
 
           <p style="margin-top: 2.5em; color: #888; font-size: 12px;">
@@ -541,7 +541,7 @@ webhookRevenueCat: async (req, res) => {
     try {
       const {
         firstName, lastName, email, password, country,
-        profileType = 'single', gender, partnerFirstName, partnerLastName, coupleType, acceptedTerms,
+        profileType = 'single', gender, partnerFirstName, partnerLastName, coupleType, acceptedTerms, acknowledgedPrivacy,
         emailVerificationToken, locale,
       } = req.body;
 
@@ -553,6 +553,9 @@ webhookRevenueCat: async (req, res) => {
       }
       if (!(acceptedTerms === true || acceptedTerms === 'true')) {
         return res.status(400).json({ code: 'TERMS_REQUIRED', message: 'The terms and adult-age confirmation must be accepted.' });
+      }
+      if (acknowledgedPrivacy !== true) {
+        return res.status(400).json({ code: 'PRIVACY_ACKNOWLEDGMENT_REQUIRED', message: 'The privacy policy must be acknowledged.' });
       }
 
       const normalizedGender = profileType === 'single' ? normalizeGenderValue(gender) : null;
@@ -584,6 +587,8 @@ webhookRevenueCat: async (req, res) => {
           role: 'user',
           backgroundColor: getRandomColor(),
           acceptedTerms: true,
+          acknowledgedPrivacy: true,
+          legalAcceptedAt: new Date(),
           status: 'active',
           notificationLocale: locale === 'en' ? 'en' : 'es',
         }, { transaction });

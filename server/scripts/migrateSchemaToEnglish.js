@@ -226,6 +226,14 @@ async function addEmailVerificationColumns(transaction) {
   `, { transaction });
 }
 
+async function addLegalAcknowledgmentColumns(transaction) {
+  if (!await tableExists('Users', transaction)) return;
+  await conn.query(`
+    ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "acknowledgedPrivacy" BOOLEAN NOT NULL DEFAULT FALSE;
+    ALTER TABLE "Users" ADD COLUMN IF NOT EXISTS "legalAcceptedAt" TIMESTAMP WITH TIME ZONE;
+  `, { transaction });
+}
+
 async function addOnboardingColumns(transaction) {
   if (!await tableExists('Users', transaction)) return;
   await conn.query(`
@@ -257,6 +265,7 @@ async function main() {
     await addPushNotificationColumns(transaction);
     await addSubscriptionColumns(transaction);
     await addEmailVerificationColumns(transaction);
+    await addLegalAcknowledgmentColumns(transaction);
     await addOnboardingColumns(transaction);
   });
   console.log('English schema migration completed successfully.');
