@@ -1,4 +1,5 @@
 const jwt = require('../utils/jwt');
+const { ENV_ADMIN_ID, getEnvAdmin, verifyEnvAdminToken } = require('../utils/envAdminAuth');
 const { Admin } = require('../db');
 
 module.exports = async function authenticateAdmin(req, res, next) {
@@ -13,6 +14,21 @@ module.exports = async function authenticateAdmin(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (decoded.role !== 'admin') {
       return res.status(403).json({ message: 'Access denied. Admins only.' });
+    }
+
+    if (decoded.id === ENV_ADMIN_ID) {
+      const envAdmin = getEnvAdmin();
+      if (!verifyEnvAdminToken(decoded, envAdmin)) {
+        return res.status(401).json({ message: 'Invalid administrator session.' });
+      }
+      req.admin = {
+        id: envAdmin.id,
+        name: envAdmin.name,
+        lastName: envAdmin.lastName,
+        email: envAdmin.email,
+        role: envAdmin.role,
+      };
+      return next();
     }
 
     const admin = await Admin.findByPk(decoded.id, {

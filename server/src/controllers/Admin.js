@@ -1,6 +1,7 @@
 require('dotenv').config();
 const bcrypt = require('bcrypt');
 const jwt = require('../utils/jwt');
+const { getEnvAdmin, matchesEnvAdminEmail, verifyEnvAdminPassword } = require('../utils/envAdminAuth');
 const { User, Profile, Admin} = require('../db');
 const { uploadFile, normalizeStorageReference } = require('../utils/objectStorage');
 
@@ -120,6 +121,16 @@ module.exports = {
     try {
       if (!email || !password) {
         return res.status(400).json({ message: 'Email and password are required.' });
+      }
+
+      const envAdmin = getEnvAdmin();
+      if (matchesEnvAdminEmail(email, envAdmin)) {
+        if (!verifyEnvAdminPassword(password, envAdmin)) {
+          return res.status(401).json({ message: 'Invalid credentials.' });
+        }
+
+        const token = jwt.sign(envAdmin, process.env.JWT_SECRET, { expiresIn: '1d' });
+        return res.json({ message: 'Login successful', token, role: 'admin' });
       }
 
       const admin = await Admin.scope('withPassword').findOne({ where: { email } });
