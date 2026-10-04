@@ -49,6 +49,8 @@ describe('Administrator lifetime user registration', () => {
         lastName: ' Pérez ',
         email: ' ANA@EXAMPLE.COM ',
         password: 'a-long-password-for-test',
+        profileType: 'single',
+        gender: 'Female',
         termsAccepted: true,
       })
       .expect(201);
@@ -63,9 +65,38 @@ describe('Administrator lifetime user registration', () => {
       acceptedTerms: true,
     });
     expect(savedUser.password).not.to.equal('a-long-password-for-test');
-    expect(savedProfile).to.include({ userId: 'new-user', displayName: 'Ana Pérez', description: null, publicProfile: true });
+    expect(savedProfile).to.include({ userId: 'new-user', displayName: 'Ana P.', profileType: 'single', gender: 'Female', description: null, publicProfile: true });
     expect(response.body.user).not.to.have.property('password');
     expect(response.body.user.plan).to.equal('lifetime');
+  });
+
+  it('creates a couple profile with both names and its composition', async () => {
+    let savedProfile;
+    User.findOne = async () => null;
+    User.sequelize.transaction = async (callback) => callback({});
+    User.create = async (values) => ({ id: 'couple-user', ...values });
+    Profile.create = async (values) => { savedProfile = values; };
+
+    await request(createTestApp())
+      .post('/users/lifetime')
+      .send({
+        firstName: 'Ana', lastName: 'Pérez', partnerFirstName: 'Luis', partnerLastName: 'Gómez',
+        profileType: 'couple', coupleType: 'woman_man', email: 'couple@example.com',
+        password: 'a-long-password-for-test', termsAccepted: true,
+      })
+      .expect(201);
+
+    expect(savedProfile).to.include({
+      userId: 'couple-user', displayName: 'Ana P. & Luis G.', profileType: 'couple',
+      partnerFirstName: 'Luis', partnerLastName: 'Gómez', coupleType: 'woman_man', gender: null,
+    });
+  });
+
+  it('rejects a couple without partner details', async () => {
+    await request(createTestApp())
+      .post('/users/lifetime')
+      .send({ firstName: 'Ana', lastName: 'Pérez', email: 'ana@example.com', password: 'long-enough-password', profileType: 'couple', termsAccepted: true })
+      .expect(400);
   });
 
   it('rejects registration without adult/terms confirmation', async () => {
@@ -79,7 +110,7 @@ describe('Administrator lifetime user registration', () => {
     User.findOne = async () => ({ id: 'existing-user' });
     await request(createTestApp())
       .post('/users/lifetime')
-      .send({ firstName: 'Ana', lastName: 'Pérez', email: 'ana@example.com', password: 'long-enough-password', termsAccepted: true })
+      .send({ firstName: 'Ana', lastName: 'Pérez', email: 'ana@example.com', password: 'long-enough-password', profileType: 'single', gender: 'Female', termsAccepted: true })
       .expect(409);
   });
 });

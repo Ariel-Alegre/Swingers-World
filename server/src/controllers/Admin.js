@@ -237,10 +237,13 @@ module.exports = {
   },
 
   RegisterLifetimeUser: async (req, res) => {
-    const { firstName, lastName, email, password, termsAccepted } = req.body || {};
+    const { firstName, lastName, email, password, profileType, gender, partnerFirstName, partnerLastName, coupleType, termsAccepted } = req.body || {};
     const normalizedFirstName = typeof firstName === 'string' ? firstName.trim() : '';
     const normalizedLastName = typeof lastName === 'string' ? lastName.trim() : '';
     const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const normalizedGender = profileType === 'single' ? normalizeGenderValue(gender) : null;
+    const normalizedPartnerFirstName = typeof partnerFirstName === 'string' ? partnerFirstName.trim() : '';
+    const normalizedPartnerLastName = typeof partnerLastName === 'string' ? partnerLastName.trim() : '';
 
     if (!normalizedFirstName || !normalizedLastName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       return res.status(400).json({ message: 'Name, surname, and a valid email are required.' });
@@ -250,6 +253,15 @@ module.exports = {
     }
     if (termsAccepted !== true) {
       return res.status(400).json({ message: 'The administrator must confirm the user is an adult and accepted the terms.' });
+    }
+    if (!['single', 'couple'].includes(profileType)) {
+      return res.status(400).json({ message: 'An individual or couple profile type is required.' });
+    }
+    if (profileType === 'single' && !normalizedGender) {
+      return res.status(400).json({ message: 'Gender is required for an individual profile.' });
+    }
+    if (profileType === 'couple' && (!normalizedPartnerFirstName || !normalizedPartnerLastName || !['woman_man', 'two_women', 'two_men', 'other'].includes(coupleType))) {
+      return res.status(400).json({ message: 'Partner name, surname, and couple composition are required.' });
     }
 
     try {
@@ -275,7 +287,14 @@ module.exports = {
 
         await Profile.create({
           userId: createdUser.id,
-          displayName: `${normalizedFirstName} ${normalizedLastName}`,
+          displayName: profileType === 'couple'
+            ? `${normalizedFirstName} ${normalizedLastName.charAt(0)}. & ${normalizedPartnerFirstName} ${normalizedPartnerLastName.charAt(0)}.`
+            : `${normalizedFirstName} ${normalizedLastName.charAt(0)}.`,
+          profileType,
+          gender: normalizedGender,
+          partnerFirstName: profileType === 'couple' ? normalizedPartnerFirstName : null,
+          partnerLastName: profileType === 'couple' ? normalizedPartnerLastName : null,
+          coupleType: profileType === 'couple' ? coupleType : null,
           description: null,
           publicProfile: true,
         }, { transaction });
