@@ -4,6 +4,15 @@ const jwt = require('../utils/jwt');
 const { getEnvAdmin, matchesEnvAdminEmail, verifyEnvAdminPassword } = require('../utils/envAdminAuth');
 const { User, Profile, Admin} = require('../db');
 const { uploadFile, normalizeStorageReference } = require('../utils/objectStorage');
+const { getIO } = require('./socket');
+
+function announceNewProfile() {
+  try {
+    getIO().emit('discoverProfilesChanged', { reason: 'profile_created', changedAt: new Date().toISOString() });
+  } catch {
+    // Registration must still succeed if real-time updates are unavailable.
+  }
+}
 
 function getRandomColor() {
   const letters = '0123456789ABCDEF';
@@ -202,7 +211,11 @@ module.exports = {
       const profile = await Profile.create({
         userId: user.id,
         displayName: `${firstName} ${lastName}`.trim(),
+        description: null,
+        publicProfile: true,
       });
+
+      announceNewProfile();
 
       return res.status(201).json({
         message: 'Free user registered successfully.',
@@ -263,9 +276,13 @@ module.exports = {
         await Profile.create({
           userId: createdUser.id,
           displayName: `${normalizedFirstName} ${normalizedLastName}`,
+          description: null,
+          publicProfile: true,
         }, { transaction });
         return createdUser;
       });
+
+      announceNewProfile();
 
       return res.status(201).json({
         message: 'Lifetime user created successfully.',

@@ -9,7 +9,7 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { findObjectionableMatch } = require('../utils/safety');
 const { getBlockedUserIdsForUser, areUsersBlocked } = require('../utils/blocks');
 const { uploadFile, deleteStoredObject, normalizeStorageReference } = require('../utils/objectStorage');
-const { matchesProfileSearch } = require('../utils/profileMatching');
+const { isDiscoverable } = require('../utils/discoverVisibility');
 const { isProfileComplete } = require('../utils/profileCompletion');
 const { getDisplayName, notifyUser } = require('../utils/notificationService');
 const { getIO } = require('./socket');
@@ -1236,21 +1236,11 @@ UpdateProfile: async (req, res) => {
       const blockedUserIds = await getBlockedUserIdsForUser(user.id);
       const excludedIds = [user.id, ...blockedUserIds];
 
-      const lookingForProfileType = user.Profile.lookingForProfileType || 'single';
-      const lookingFor = normalizeLookingForValue(user.Profile.lookingFor);
-      const lookingForCoupleType = user.Profile.lookingForCoupleType;
-
-      if (
-        (lookingForProfileType === 'single' && !lookingFor)
-        || (lookingForProfileType === 'couple' && !VALID_LOOKING_FOR_COUPLE_TYPES.includes(lookingForCoupleType))
-      ) {
-        return res.status(200).json([]);
-      }
-
-      
       const users = await User.findAll({
         where: {
           id: { [Op.notIn]: excludedIds },
+          status: 'active',
+          acceptedTerms: true,
         },
         include: [
           {
@@ -1264,14 +1254,7 @@ UpdateProfile: async (req, res) => {
       });
 
       
-      const filteredUsers = users.filter((candidate) => {
-        const profile = candidate.Profile;
-
-        return (
-          isProfileComplete(profile) &&
-          matchesProfileSearch(profile, lookingForProfileType, lookingFor, lookingForCoupleType)
-        );
-      });
+      const filteredUsers = users.filter(isDiscoverable);
       const candidateIds = filteredUsers.map((candidate) => candidate.id);
       const [acceptedPhotoRequests, pendingPhotoRequests] = filteredUsers.length
         ? await Promise.all([PhotoRequest.findAll({

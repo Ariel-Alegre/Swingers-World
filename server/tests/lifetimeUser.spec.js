@@ -63,7 +63,7 @@ describe('Administrator lifetime user registration', () => {
       acceptedTerms: true,
     });
     expect(savedUser.password).not.to.equal('a-long-password-for-test');
-    expect(savedProfile).to.include({ userId: 'new-user', displayName: 'Ana Pérez' });
+    expect(savedProfile).to.include({ userId: 'new-user', displayName: 'Ana Pérez', description: null, publicProfile: true });
     expect(response.body.user).not.to.have.property('password');
     expect(response.body.user.plan).to.equal('lifetime');
   });
