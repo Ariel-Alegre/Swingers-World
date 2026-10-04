@@ -15,7 +15,8 @@ function getRandomColor() {
 }
 
 function getRegistrationSource(user) {
-  if (user.plan === 'free' && user.subscriptionStatus === 'free') {
+  if ((user.plan === 'free' && user.subscriptionStatus === 'free') ||
+      (user.plan === 'lifetime' && user.subscriptionStatus === 'lifetime')) {
     return 'admin';
   }
 
@@ -219,6 +220,70 @@ module.exports = {
         message: 'Internal server error',
         error: error.message,
       });
+    }
+  },
+
+  RegisterLifetimeUser: async (req, res) => {
+    const { firstName, lastName, email, password, termsAccepted } = req.body || {};
+    const normalizedFirstName = typeof firstName === 'string' ? firstName.trim() : '';
+    const normalizedLastName = typeof lastName === 'string' ? lastName.trim() : '';
+    const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+    if (!normalizedFirstName || !normalizedLastName || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ message: 'Name, surname, and a valid email are required.' });
+    }
+    if (typeof password !== 'string' || password.length < 12 || password.length > 128) {
+      return res.status(400).json({ message: 'Password must be between 12 and 128 characters.' });
+    }
+    if (termsAccepted !== true) {
+      return res.status(400).json({ message: 'The administrator must confirm the user is an adult and accepted the terms.' });
+    }
+
+    try {
+      const existingUser = await User.findOne({ where: { email: normalizedEmail } });
+      if (existingUser) return res.status(409).json({ message: 'A user with that email address already exists.' });
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      const user = await User.sequelize.transaction(async (transaction) => {
+        const createdUser = await User.create({
+          firstName: normalizedFirstName,
+          lastName: normalizedLastName,
+          email: normalizedEmail,
+          password: passwordHash,
+          backgroundColor: getRandomColor(),
+          role: 'user',
+          status: 'active',
+          plan: 'lifetime',
+          subscriptionStatus: 'lifetime',
+          currentPeriodEnd: null,
+          lastPaymentStatus: null,
+          acceptedTerms: true,
+        }, { transaction });
+
+        await Profile.create({
+          userId: createdUser.id,
+          displayName: `${normalizedFirstName} ${normalizedLastName}`,
+        }, { transaction });
+        return createdUser;
+      });
+
+      return res.status(201).json({
+        message: 'Lifetime user created successfully.',
+        user: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          plan: user.plan,
+          subscriptionStatus: user.subscriptionStatus,
+        },
+      });
+    } catch (error) {
+      if (error.name === 'SequelizeUniqueConstraintError') {
+        return res.status(409).json({ message: 'A user with that email address already exists.' });
+      }
+      console.error('Lifetime user registration error:', error);
+      return res.status(500).json({ message: 'Internal server error.' });
     }
   },
 

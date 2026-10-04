@@ -481,6 +481,10 @@ webhookRevenueCat: async (req, res) => {
       return res.status(200).json({ received: true, ignored: true, reason: 'user_not_found' });
     }
 
+    if (user.plan === 'lifetime' && user.subscriptionStatus === 'lifetime') {
+      return res.status(200).json({ received: true, ignored: true, reason: 'lifetime_access' });
+    }
+
     const effectiveProductId = new_product_id || product_id;
     const plan = mapRevenueCatProductToPlan(effectiveProductId) || user.plan;
     const currentPeriodEnd = expiration_at_ms ? new Date(expiration_at_ms) : user.currentPeriodEnd;

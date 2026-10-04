@@ -5,6 +5,7 @@ const {
   RegisterAdmin,
   LoginAdmin,
   RegisterFreeUser,
+  RegisterLifetimeUser,
   UpdateAdminCreatedUserProfile,
   GetAllUsers,
   GetUserById,
@@ -18,6 +19,7 @@ router.get('/admin/me', adminMiddleware, GetAdminProfile);
 router.post('/admins/register', RegisterAdmin);
 router.post('/admins/login', LoginAdmin);
 router.post('/admin/users/free', adminMiddleware, RegisterFreeUser);
+router.post('/admin/users/lifetime', adminMiddleware, RegisterLifetimeUser);
 router.patch(
   '/admin/users/:userId/profile',
   adminMiddleware,
