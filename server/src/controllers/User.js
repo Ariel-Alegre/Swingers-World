@@ -1,6 +1,7 @@
 require('dotenv').config();
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const jwt = require('../utils/jwt');
 const { Op } = require('sequelize');
 const { User, Profile, Like, Message, PhotoRequest, Notification, PushToken, ContentReport, UserBlock, conn } = require('../db');
@@ -105,6 +106,16 @@ function mapRevenueCatProductToPlan(productIdentifier) {
 
   const normalizedIdentifier = String(productIdentifier || '').trim();
   return productMap[normalizedIdentifier] || productMap[normalizedIdentifier.split(':')[0]] || null;
+}
+
+function matchesWebhookSecret(authorizationHeader, expectedSecret) {
+  const providedSecret = String(authorizationHeader || '').replace(/^Bearer\s+/i, '').trim();
+  const normalizedExpectedSecret = String(expectedSecret || '').trim();
+  const providedBuffer = Buffer.from(providedSecret);
+  const expectedBuffer = Buffer.from(normalizedExpectedSecret);
+
+  return providedBuffer.length === expectedBuffer.length
+    && crypto.timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
 function getAuthenticatedUserId(req) {
@@ -425,8 +436,7 @@ webhookRevenueCat: async (req, res) => {
     if (!expectedSecret) {
       return res.status(503).json({ message: 'RevenueCat webhook is not configured.' });
     }
-    const expectedAuth = `Bearer ${expectedSecret}`;
-    if (authHeader !== expectedAuth) {
+    if (!matchesWebhookSecret(authHeader, expectedSecret)) {
       return res.status(401).json({ message: 'Unauthorized RevenueCat webhook.' });
     }
 
