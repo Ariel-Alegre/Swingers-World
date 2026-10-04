@@ -6,6 +6,11 @@ export type AuthStackParamList = {
   Legal: { document: 'terms' | 'privacy' };
 };
 
+export type PaywallStackParamList = {
+  Subscription: undefined;
+  Legal: { document: 'terms' | 'privacy' };
+};
+
 export type MainTabParamList = {
   Descubrir: undefined;
   Solicitudes: undefined;

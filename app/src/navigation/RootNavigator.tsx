@@ -30,9 +30,10 @@ import { useSubscription } from '../context/SubscriptionContext';
 import { api } from '../lib/api';
 import { getSocket } from '../lib/socket';
 import { colors } from '../theme/colors';
-import type { AuthStackParamList, MainTabParamList, RootStackParamList } from './types';
+import type { AuthStackParamList, MainTabParamList, PaywallStackParamList, RootStackParamList } from './types';
 
 const AuthStack = createNativeStackNavigator<AuthStackParamList>();
+const PaywallStack = createNativeStackNavigator<PaywallStackParamList>();
 const RootStack = createNativeStackNavigator<RootStackParamList>();
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -186,7 +187,14 @@ export function RootNavigator() {
     );
   }
 
-  if (!subscription.hasAccess) return <SubscriptionScreen />;
+  if (!subscription.hasAccess) {
+    return (
+      <PaywallStack.Navigator screenOptions={{ headerStyle: { backgroundColor: colors.background }, headerTintColor: colors.text, headerShadowVisible: false, contentStyle: { backgroundColor: colors.background } }}>
+        <PaywallStack.Screen name="Subscription" component={SubscriptionScreen} options={{ headerShown: false }} />
+        <PaywallStack.Screen name="Legal" component={LegalScreen} options={{ title: t('nav.legal') }} />
+      </PaywallStack.Navigator>
+    );
+  }
 
   return (
     <>

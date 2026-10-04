@@ -1,10 +1,16 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
-import Purchases, { LOG_LEVEL, type CustomerInfo } from 'react-native-purchases';
+import Purchases, {
+  LOG_LEVEL,
+  PURCHASES_ERROR_CODE,
+  type CustomerInfo,
+  type PurchasesError,
+  type PurchasesPackage,
+} from 'react-native-purchases';
 import RevenueCatUI from 'react-native-purchases-ui';
 import { useAuth } from './AuthContext';
 
-const ENTITLEMENT_ID = process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID || 'premium';
+const ENTITLEMENT_ID = process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID || 'swingers_world_premium';
 const IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY || '';
 const ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY || '';
 
@@ -15,9 +21,12 @@ type SubscriptionContextValue = {
   loading: boolean;
   hasAccess: boolean;
   previewMode: boolean;
+  packages: PurchasesPackage[];
+  offeringsLoading: boolean;
   error: string;
   refresh: () => Promise<boolean>;
-  showPaywall: () => Promise<boolean>;
+  loadOfferings: () => Promise<void>;
+  purchase: (selectedPackage: PurchasesPackage) => Promise<boolean>;
   restore: () => Promise<boolean>;
   manage: () => Promise<void>;
 };
@@ -39,6 +48,8 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
   const [loading, setLoading] = useState(Boolean(user));
   const [hasAccess, setHasAccess] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
+  const [packages, setPackages] = useState<PurchasesPackage[]>([]);
+  const [offeringsLoading, setOfferingsLoading] = useState(false);
   const [error, setError] = useState('');
 
   const applyCustomerInfo = useCallback((customerInfo: CustomerInfo) => {
@@ -58,12 +69,31 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
     }
   }, [applyCustomerInfo, previewMode]);
 
+  const loadOfferings = useCallback(async () => {
+    if (!configured) return;
+    setOfferingsLoading(true);
+    setError('');
+    try {
+      const offerings = await Purchases.getOfferings();
+      setPackages(offerings.current?.availablePackages ?? []);
+      if (!offerings.current?.availablePackages.length) {
+        setError('No subscription plans are currently available.');
+      }
+    } catch (value) {
+      setPackages([]);
+      setError(value instanceof Error ? value.message : 'Subscription plans could not be loaded.');
+    } finally {
+      setOfferingsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let active = true;
     if (!user) {
       setLoading(false);
       setHasAccess(false);
       setPreviewMode(false);
+      setPackages([]);
       return undefined;
     }
     if (user.role === 'admin') {
@@ -102,7 +132,22 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
           if (active) applyCustomerInfo(result.customerInfo);
         }
         Purchases.addCustomerInfoUpdateListener(customerInfoListener);
-        if (active) applyCustomerInfo(await Purchases.getCustomerInfo());
+        const customerInfo = await Purchases.getCustomerInfo();
+        if (active) applyCustomerInfo(customerInfo);
+        try {
+          const offerings = await Purchases.getOfferings();
+          if (active) {
+            setPackages(offerings.current?.availablePackages ?? []);
+            if (!offerings.current?.availablePackages.length) {
+              setError('No subscription plans are currently available.');
+            }
+          }
+        } catch (value) {
+          if (active && !hasPremiumEntitlement(customerInfo)) {
+            setPackages([]);
+            setError(value instanceof Error ? value.message : 'Subscription plans could not be loaded.');
+          }
+        }
       } catch (value) {
         if (active) {
           setHasAccess(false);
@@ -119,19 +164,21 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
     };
   }, [applyCustomerInfo, user?.id, user?.role]);
 
-  const showPaywall = useCallback(async () => {
+  const purchase = useCallback(async (selectedPackage: PurchasesPackage) => {
     if (!configured) return previewMode;
+    setError('');
     try {
-      await RevenueCatUI.presentPaywallIfNeeded({
-        requiredEntitlementIdentifier: ENTITLEMENT_ID,
-        displayCloseButton: true,
-      });
-      return await refresh();
+      const result = await Purchases.purchasePackage(selectedPackage);
+      return applyCustomerInfo(result.customerInfo);
     } catch (value) {
-      setError(value instanceof Error ? value.message : 'The subscription screen could not be opened.');
+      const purchaseError = value as Partial<PurchasesError>;
+      if (purchaseError.code === PURCHASES_ERROR_CODE.PURCHASE_CANCELLED_ERROR || purchaseError.userCancelled) {
+        return false;
+      }
+      setError(value instanceof Error ? value.message : 'The purchase could not be completed.');
       return false;
     }
-  }, [previewMode, refresh]);
+  }, [applyCustomerInfo, previewMode]);
 
   const restore = useCallback(async () => {
     if (!configured) return previewMode;
@@ -149,7 +196,19 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
     await refresh();
   }, [refresh]);
 
-  const value = useMemo(() => ({ loading, hasAccess, previewMode, error, refresh, showPaywall, restore, manage }), [loading, hasAccess, previewMode, error, refresh, showPaywall, restore, manage]);
+  const value = useMemo(() => ({
+    loading,
+    hasAccess,
+    previewMode,
+    packages,
+    offeringsLoading,
+    error,
+    refresh,
+    loadOfferings,
+    purchase,
+    restore,
+    manage,
+  }), [loading, hasAccess, previewMode, packages, offeringsLoading, error, refresh, loadOfferings, purchase, restore, manage]);
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
 }
 
