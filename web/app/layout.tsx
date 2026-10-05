@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Swingers World | Privacidad",
-  description: "Política de privacidad de Swingers World en español e inglés.",
+  title: "Swingers World | Conectá a tu manera",
+  description: "Una comunidad para adultos donde podés descubrir perfiles, conversar y conocer personas a tu ritmo.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

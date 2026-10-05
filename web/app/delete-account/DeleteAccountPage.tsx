@@ -66,7 +66,7 @@ export function DeleteAccountPage({ locale }: { locale: Locale }) {
   return (
     <div className="legal-shell" lang={locale}>
       <header className="legal-header">
-        <Link className="legal-brand" href="/privacy" aria-label="Swingers World">
+        <Link className="legal-brand" href={locale === "es" ? "/" : "/en"} aria-label="Swingers World">
           Swingers <span>World</span>
         </Link>
         <nav className="language-nav" aria-label={locale === "es" ? "Idioma" : "Language"}>
