@@ -41,6 +41,7 @@ export function PrivacyPage({ locale }: { locale: PrivacyLocale }) {
 
       <footer className="legal-footer">
         <span>© {new Date().getFullYear()} Swingers World</span>
+        <span><Link href={locale === "es" ? "/delete-account" : "/delete-account/en"}>{locale === "es" ? "Eliminar cuenta" : "Delete account"}</Link></span>
         <span>{content.contactLabel}: <a href="mailto:swingersworldinfo@gmail.com">swingersworldinfo@gmail.com</a></span>
       </footer>
     </div>

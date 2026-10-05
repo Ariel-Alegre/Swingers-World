@@ -94,6 +94,19 @@ a { color: inherit; }
 .legal-section p { margin: 0 0 13px; color: #d7ced9; line-height: 1.78; }
 .legal-section p:last-child { margin-bottom: 0; }
 .legal-section a { color: #efd2a1; text-underline-offset: 3px; }
+.legal-steps { margin: 0; padding-left: 24px; color: #d7ced9; line-height: 1.9; }
+.legal-action {
+  display: inline-block;
+  margin: 8px 0 0;
+  padding: 13px 20px;
+  border-radius: 10px;
+  background: #e6bd74;
+  color: #23151f !important;
+  font-weight: 700;
+  text-decoration: none;
+}
+.legal-action:hover { background: #f3d196; }
+.legal-contact-address { margin-top: 12px !important; font-size: 14px; }
 .legal-footer {
   max-width: 1140px;
   margin: 0 auto;
