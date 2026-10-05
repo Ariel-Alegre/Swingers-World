@@ -38,6 +38,17 @@ function fullPriceAmount(selectedPackage: PurchasesPackage) {
   return typeof micros === 'number' ? micros / 1_000_000 : selectedPackage.product.price;
 }
 
+function hasSevenDayTrial(selectedPackage: PurchasesPackage) {
+  const trialPeriod = selectedPackage.product.defaultOption?.freePhase?.billingPeriod.iso8601;
+  return trialPeriod === 'P7D' || trialPeriod === 'P1W';
+}
+
+function periodLabel(identifier: string): TranslationKey {
+  if (identifier === '$rc_annual') return 'subscription.periodYear';
+  if (identifier === '$rc_six_month') return 'subscription.periodSixMonths';
+  return 'subscription.periodMonth';
+}
+
 export function SubscriptionScreen({ navigation }: Props) {
   const { signOut } = useAuth();
   const { t } = useLanguage();
@@ -61,6 +72,7 @@ export function SubscriptionScreen({ navigation }: Props) {
   }, [orderedPackages, selectedIdentifier]);
 
   const selectedPackage = orderedPackages.find((item) => item.identifier === selectedIdentifier);
+  const selectedHasTrial = selectedPackage ? hasSevenDayTrial(selectedPackage) : false;
   const monthlyPackage = orderedPackages.find((item) => item.identifier === '$rc_monthly');
 
   const savingsFor = (item: PurchasesPackage) => {
@@ -148,6 +160,7 @@ export function SubscriptionScreen({ navigation }: Props) {
                     ) : null}
                   </View>
                   {monthlyPrice ? <Text style={styles.perMonth}>{t('subscription.perMonth', { price: monthlyPrice })}</Text> : null}
+                  {hasSevenDayTrial(item) ? <Text style={styles.planTrial}>{t('subscription.eligibleTrial')}</Text> : null}
                 </View>
                 <Text style={styles.price}>{fullPrice(item)}</Text>
               </Pressable>
@@ -164,14 +177,19 @@ export function SubscriptionScreen({ navigation }: Props) {
         </View>
       )}
 
-      <View style={styles.trialNote}>
-        <Ionicons name="sparkles" size={17} color={colors.goldSoft} />
-        <Text style={styles.trialText}>{t('subscription.eligibleTrial')}</Text>
-      </View>
+      {selectedPackage && selectedHasTrial ? (
+        <View style={styles.trialNote}>
+          <Ionicons name="sparkles" size={17} color={colors.goldSoft} />
+          <Text style={styles.trialText}>{t('subscription.trialThenPrice', {
+            price: fullPrice(selectedPackage),
+            period: t(periodLabel(selectedPackage.identifier)),
+          })}</Text>
+        </View>
+      ) : null}
 
       {error && orderedPackages.length ? <Text style={styles.error}>{t('subscription.operationFailed')}</Text> : null}
       <AppButton
-        title={t('subscription.continue')}
+        title={t(selectedHasTrial ? 'subscription.startTrial' : 'subscription.continue')}
         onPress={() => void buy()}
         loading={working === 'purchase'}
         disabled={!selectedPackage || offeringsLoading || working === 'restore'}
@@ -226,6 +244,7 @@ const styles = StyleSheet.create({
   planHeading: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 7 },
   planName: { color: colors.text, fontSize: 16, fontWeight: '900' },
   perMonth: { color: colors.textMuted, fontSize: 12, marginTop: 4 },
+  planTrial: { color: colors.goldSoft, fontSize: 11, fontWeight: '700', marginTop: 4 },
   price: { color: colors.text, fontSize: 16, fontWeight: '900', textAlign: 'right' },
   badge: { backgroundColor: colors.gold, borderRadius: radius.pill, paddingHorizontal: 8, paddingVertical: 3 },
   badgeText: { color: colors.black, fontSize: 10, fontWeight: '900', textTransform: 'uppercase' },
@@ -236,7 +255,7 @@ const styles = StyleSheet.create({
   retry: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   retryText: { color: colors.gold, fontWeight: '800' },
   trialNote: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, marginVertical: spacing.md },
-  trialText: { color: colors.goldSoft, fontSize: 13, fontWeight: '700' },
+  trialText: { flex: 1, color: colors.goldSoft, fontSize: 13, fontWeight: '700', textAlign: 'center' },
   error: { color: colors.danger, textAlign: 'center', lineHeight: 19, marginBottom: spacing.sm },
   secondaryButton: { marginTop: spacing.sm },
   renewal: { color: colors.textMuted, textAlign: 'center', fontSize: 11, lineHeight: 16, marginTop: spacing.md },

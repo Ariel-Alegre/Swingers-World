@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "977284483148",
+    "project_id": "swingers-world-a5573",
+    "storage_bucket": "swingers-world-a5573.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:977284483148:android:febc8b647c396651dd0ce9",
+        "android_client_info": {
+          "package_name": "com.swingers.world"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyASUz4ncd1Bggi6K5GYGDxLF0Ck6WrJHfI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

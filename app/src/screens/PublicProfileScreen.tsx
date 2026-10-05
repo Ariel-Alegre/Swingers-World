@@ -142,6 +142,7 @@ export function PublicProfileScreen({ route, navigation }: Props) {
     </Screen>
   );
   const visible = Boolean(user.Profile?.photosVisible || allowed);
+  const hasAnyPhotos = Boolean(user.Profile?.photos?.some((photo) => photo?.url));
   const photos = visible ? user.Profile?.photos ?? [] : [];
   const name = user.Profile?.displayName || `${user.firstName} ${user.lastName}`;
   const isCouple = user.Profile?.profileType === 'couple';
@@ -162,7 +163,7 @@ export function PublicProfileScreen({ route, navigation }: Props) {
 
   return (
     <View style={styles.container}>
-    <Screen scroll contentStyle={visible ? styles.profileContent : styles.profileContentPrivate}>
+    <Screen scroll contentStyle={visible || !hasAnyPhotos ? styles.profileContent : styles.profileContentPrivate}>
       <View style={styles.topControls} pointerEvents="box-none">
         <Pressable accessibilityRole="button" onPress={() => navigation.goBack()} style={styles.floatingButton}>
           <Ionicons name="chevron-back" size={26} color={colors.text} />
@@ -219,12 +220,12 @@ export function PublicProfileScreen({ route, navigation }: Props) {
         </View>
       ) : (
         <View style={styles.locked}>
-          {user.Profile?.photos?.[0]?.url ? <Image source={{ uri: user.Profile.photos[0].url }} style={styles.lockedImage} blurRadius={30} /> : null}
-          <View style={styles.lockedShade} />
+          {hasAnyPhotos && user.Profile?.photos?.[0]?.url ? <Image source={{ uri: user.Profile.photos[0].url }} style={styles.lockedImage} blurRadius={30} /> : null}
+          {hasAnyPhotos ? <View style={styles.lockedShade} /> : null}
           <View style={styles.lockedContent}>
-            <Ionicons name="lock-closed" size={48} color={colors.gold} />
-            <Text style={styles.lockedTitle}>{t('profile.privateContent')}</Text>
-            <Text style={styles.lockedCopy}>{t('profile.privateMessage')}</Text>
+            <Ionicons name={hasAnyPhotos ? 'lock-closed' : 'person-circle-outline'} size={48} color={colors.gold} />
+            <Text style={styles.lockedTitle}>{t(hasAnyPhotos ? 'profile.privateContent' : 'profile.noPhoto')}</Text>
+            <Text style={styles.lockedCopy}>{t(hasAnyPhotos ? 'profile.privateMessage' : 'profile.noPhotoHint')}</Text>
           </View>
         </View>
       )}
@@ -285,7 +286,7 @@ export function PublicProfileScreen({ route, navigation }: Props) {
       </Modal>
     </Screen>
       <SafeAreaView edges={['bottom']} pointerEvents="box-none" style={styles.messageBar}>
-        {!visible ? (
+        {!visible && hasAnyPhotos ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t('profile.requestPhotos')}

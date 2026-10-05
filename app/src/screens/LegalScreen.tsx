@@ -4,50 +4,26 @@ import { useRoute, type RouteProp } from '@react-navigation/native';
 import { Screen } from '../components/Screen';
 import { Header } from '../components/Header';
 import { colors, radius, spacing } from '../theme/colors';
-import { useLanguage, type TranslationKey } from '../context/LanguageContext';
+import { useLanguage } from '../context/LanguageContext';
+import { legalDocuments } from '../content/legalDocuments';
 
 type LegalRoute = RouteProp<{ Legal: { document: 'terms' | 'privacy' } }, 'Legal'>;
 
-const sections: Record<'terms' | 'privacy', { title: TranslationKey; intro: TranslationKey; items: Array<[TranslationKey, TranslationKey]> }> = {
-  terms: {
-    title: 'legal.terms.title',
-    intro: 'legal.terms.intro',
-    items: [
-      ['legal.terms.adults.title', 'legal.terms.adults.body'],
-      ['legal.terms.consent.title', 'legal.terms.consent.body'],
-      ['legal.terms.respect.title', 'legal.terms.respect.body'],
-      ['legal.terms.moderation.title', 'legal.terms.moderation.body'],
-      ['legal.terms.account.title', 'legal.terms.account.body'],
-    ],
-  },
-  privacy: {
-    title: 'legal.privacy.title',
-    intro: 'legal.privacy.intro',
-    items: [
-      ['legal.privacy.account.title', 'legal.privacy.account.body'],
-      ['legal.privacy.photos.title', 'legal.privacy.photos.body'],
-      ['legal.privacy.messages.title', 'legal.privacy.messages.body'],
-      ['legal.privacy.control.title', 'legal.privacy.control.body'],
-      ['legal.privacy.security.title', 'legal.privacy.security.body'],
-    ],
-  },
-} as const;
-
 export function LegalScreen() {
   const route = useRoute<LegalRoute>();
-  const { t } = useLanguage();
-  const content = sections[route.params.document];
+  const { language } = useLanguage();
+  const content = legalDocuments[language][route.params.document];
   return (
     <Screen scroll>
-      <Header title={t(content.title)} subtitle={t('legal.updated')} />
-      <Text style={styles.intro}>{t(content.intro)}</Text>
-      {content.items.map(([title, body]) => (
-        <View key={title} style={styles.card}>
-          <Text style={styles.title}>{t(title)}</Text>
-          <Text style={styles.body}>{t(body)}</Text>
+      <Header title={content.title} subtitle={content.updated} />
+      <Text style={styles.intro}>{content.intro}</Text>
+      {content.sections.map((section) => (
+        <View key={section.heading} style={styles.card}>
+          <Text style={styles.title}>{section.heading}</Text>
+          <Text style={styles.body}>{section.body}</Text>
         </View>
       ))}
-      <Text style={styles.note}>{t('legal.note')}</Text>
+      <Text style={styles.note}>{content.note}</Text>
     </Screen>
   );
 }

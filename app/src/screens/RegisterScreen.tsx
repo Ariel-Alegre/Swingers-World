@@ -29,7 +29,8 @@ export function RegisterScreen({ navigation }: Props) {
   const [partnerFirstName, setPartnerFirstName] = useState('');
   const [partnerLastName, setPartnerLastName] = useState('');
   const [coupleType, setCoupleType] = useState<CoupleType | ''>('');
-  const [accepted, setAccepted] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acknowledgedPrivacy, setAcknowledgedPrivacy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<RegisterErrors>({});
@@ -68,7 +69,7 @@ export function RegisterScreen({ navigation }: Props) {
       if (!coupleType) nextErrors.coupleType = required;
     }
     setFieldErrors(nextErrors);
-    const nextAcceptedError = accepted ? '' : t('register.acceptTerms');
+    const nextAcceptedError = !acceptedTerms ? t('register.acceptTerms') : !acknowledgedPrivacy ? t('register.acknowledgePrivacyRequired') : '';
     setAcceptedError(nextAcceptedError);
     if (Object.keys(nextErrors).length || nextAcceptedError) return;
     setLoading(true);
@@ -104,7 +105,8 @@ export function RegisterScreen({ navigation }: Props) {
         partnerFirstName: profileType === 'couple' ? partnerFirstName.trim() : undefined,
         partnerLastName: profileType === 'couple' ? partnerLastName.trim() : undefined,
         coupleType: profileType === 'couple' ? coupleType : undefined,
-        acceptedTerms: true,
+        acceptedTerms,
+        acknowledgedPrivacy,
         emailVerificationToken,
         locale: language,
   });
@@ -257,16 +259,17 @@ export function RegisterScreen({ navigation }: Props) {
               />
             </>
           ) : null}
-          <Pressable onPress={() => { setAccepted((value) => !value); setAcceptedError(''); }} style={styles.checkRow}>
-            <View style={[styles.checkbox, acceptedError && styles.checkboxError, accepted && styles.checked]}>{accepted ? <Text style={styles.check}>✓</Text> : null}</View>
+          <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acceptedTerms }} onPress={() => { setAcceptedTerms((value) => !value); setAcceptedError(''); }} style={styles.checkRow}>
+            <View style={[styles.checkbox, acceptedError && styles.checkboxError, acceptedTerms && styles.checked]}>{acceptedTerms ? <Text style={styles.check}>✓</Text> : null}</View>
             <Text style={styles.checkText}>{t(profileType === 'couple' ? 'register.confirmAdultsCouple' : 'register.confirmAdult')}</Text>
           </Pressable>
+          <Pressable onPress={() => navigation.navigate('Legal', { document: 'terms' })} style={styles.legalLinkRow}><Text style={styles.legalLink}>{t('register.viewTerms')} →</Text></Pressable>
+          <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: acknowledgedPrivacy }} onPress={() => { setAcknowledgedPrivacy((value) => !value); setAcceptedError(''); }} style={styles.checkRow}>
+            <View style={[styles.checkbox, acceptedError && styles.checkboxError, acknowledgedPrivacy && styles.checked]}>{acknowledgedPrivacy ? <Text style={styles.check}>✓</Text> : null}</View>
+            <Text style={styles.checkText}>{t('register.acknowledgePrivacy')}</Text>
+          </Pressable>
+          <Pressable onPress={() => navigation.navigate('Legal', { document: 'privacy' })} style={styles.legalLinkRow}><Text style={styles.legalLink}>{t('register.viewPrivacy')} →</Text></Pressable>
           {acceptedError ? <Text style={styles.error}>{acceptedError}</Text> : null}
-          <View style={styles.legalLinks}>
-            <Pressable onPress={() => navigation.navigate('Legal', { document: 'terms' })}><Text style={styles.legalLink}>{t('register.viewTerms')}</Text></Pressable>
-            <Text style={styles.separator}>•</Text>
-            <Pressable onPress={() => navigation.navigate('Legal', { document: 'privacy' })}><Text style={styles.legalLink}>{t('register.viewPrivacy')}</Text></Pressable>
-          </View>
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <AppButton title={t('register.sendCode')} onPress={submit} loading={loading} />
           <Pressable onPress={() => navigation.goBack()}><Text style={styles.back}>{t('register.haveAccount')}</Text></Pressable>
@@ -291,9 +294,8 @@ const styles = StyleSheet.create({
   check: { color: colors.white, fontWeight: '900' },
   checkText: { flex: 1, color: colors.textMuted, fontSize: 13, lineHeight: 19 },
   error: { color: colors.danger, fontSize: 13 },
-  legalLinks: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm },
+  legalLinkRow: { alignSelf: 'flex-start', marginLeft: 22 + spacing.sm, marginTop: -spacing.sm },
   legalLink: { color: colors.goldSoft, fontSize: 13, fontWeight: '700' },
-  separator: { color: colors.textMuted },
   back: { color: colors.goldSoft, fontWeight: '700', textAlign: 'center', padding: spacing.sm },
   verificationTitle: { color: colors.text, fontSize: 24, fontWeight: '900' },
   verificationText: { color: colors.textMuted, lineHeight: 21 },

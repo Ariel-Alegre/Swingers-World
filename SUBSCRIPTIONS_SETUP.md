@@ -1,6 +1,6 @@
 # Swingers World subscriptions
 
-The mobile app uses RevenueCat with the `premium` entitlement. App Store and Google Play remain the source of truth for pricing, trial eligibility, renewals, cancellations, and refunds.
+The mobile app uses RevenueCat with the `swingers_world_premium` entitlement. App Store and Google Play remain the source of truth for pricing, trial eligibility, renewals, cancellations, and refunds.
 
 ## Products
 
@@ -12,7 +12,9 @@ On Google Play, create one auto-renewable subscription with three base plans:
 
 For the App Store, create the equivalent monthly, six-month, and annual products using store-compatible identifiers.
 
-Attach all three products to the RevenueCat entitlement named `premium`, add them to the current Offering, and configure a RevenueCat Paywall containing all three packages.
+Attach all three products to the RevenueCat entitlement named `swingers_world_premium` and add them to the current `default` Offering using the `$rc_monthly`, `$rc_six_month`, and `$rc_annual` packages.
+
+The app renders its own native paywall from the current Offering. RevenueCat's remote Paywall editor does not need to be published.
 
 Configure a seven-day free introductory trial for each product in App Store Connect and Google Play Console. Store eligibility rules ensure that one customer cannot repeatedly claim the trial within the same subscription group.
 
@@ -23,7 +25,7 @@ Copy the public SDK keys from RevenueCat into the app environment:
 ```env
 EXPO_PUBLIC_REVENUECAT_IOS_API_KEY=appl_...
 EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY=goog_...
-EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID=premium
+EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID=swingers_world_premium
 ```
 
 ## Railway environment

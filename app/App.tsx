@@ -7,10 +7,9 @@ import { AuthProvider } from './src/context/AuthContext';
 import { SubscriptionProvider } from './src/context/SubscriptionContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { PushNotificationManager } from './src/components/PushNotificationManager';
 import { colors } from './src/theme/colors';
 import { navigationRef } from './src/lib/navigation';
-// TEMPORARILY DISABLED: remote push notifications require a development build.
-// import { PushNotificationManager } from './src/components/PushNotificationManager';
 
 const navigationTheme = {
   ...DarkTheme,
@@ -33,7 +32,7 @@ export default function App() {
           <AuthProvider>
             <SubscriptionProvider>
               <StatusBar style="light" />
-              {/* <PushNotificationManager /> */}
+              <PushNotificationManager />
               <RootNavigator />
             </SubscriptionProvider>
           </AuthProvider>

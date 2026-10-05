@@ -93,7 +93,7 @@ export function DiscoverScreen({ navigation }: { navigation: Navigation }) {
   }, [loading, synchronizeProfiles]));
   const user = users[index];
   const profileName = user?.Profile?.displayName || (user ? `${user.firstName} ${user.lastName}` : '');
-  const description = user?.Profile?.description || t('discover.defaultDescription');
+  const description = user?.Profile?.description || t('profile.noDescription');
   const canViewPhotos = Boolean(user?.Profile?.photosVisible || user?.canViewPrivatePhotos);
 
   useEffect(() => {
@@ -247,10 +247,10 @@ export function DiscoverScreen({ navigation }: { navigation: Navigation }) {
                   </View>
                 </View>
               ) : (
-                <View style={[styles.photo, descriptionExpanded && styles.photoExpanded, styles.privatePhoto]}>
-                  <Ionicons name="lock-closed" size={42} color={colors.gold} />
-                  <Text style={styles.privateTitle}>{t('discover.privatePhotos')}</Text>
-                  <Text style={styles.privateCopy}>{t('discover.requestHint')}</Text>
+                <View style={[styles.photo, descriptionExpanded && styles.photoExpanded, styles.noPhoto]}>
+                  <Ionicons name="person-circle-outline" size={60} color={colors.gold} />
+                  <Text style={styles.privateTitle}>{t('discover.noPhoto')}</Text>
+                  <Text style={styles.privateCopy}>{t('discover.noPhotoHint')}</Text>
                 </View>
               )}
             </Pressable>
@@ -349,6 +349,7 @@ const styles = StyleSheet.create({
   privateImage: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0 },
   privateShade: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(9,7,12,0.42)' },
   privatePhoto: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
+  noPhoto: { alignItems: 'center', justifyContent: 'center', gap: spacing.sm },
   privateTitle: { color: colors.goldSoft, fontSize: 20, fontWeight: '900' },
   privateCopy: { color: colors.textMuted },
   privateRequestButton: { minHeight: 40, marginTop: spacing.xs, paddingHorizontal: spacing.md, borderRadius: radius.pill, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.gold },

@@ -46,6 +46,7 @@ function platformApiKey() {
 export function SubscriptionProvider({ children }: React.PropsWithChildren) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(Boolean(user));
+  const [checkedUserId, setCheckedUserId] = useState<string | null>(null);
   const [hasAccess, setHasAccess] = useState(false);
   const [previewMode, setPreviewMode] = useState(false);
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
@@ -60,6 +61,7 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
   }, []);
 
   const refresh = useCallback(async () => {
+    if (user?.plan === 'lifetime' && user.subscriptionStatus === 'lifetime') return true;
     if (!configured) return previewMode;
     try {
       return applyCustomerInfo(await Purchases.getCustomerInfo());
@@ -67,7 +69,7 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
       setError(value instanceof Error ? value.message : 'Subscription status could not be verified.');
       return false;
     }
-  }, [applyCustomerInfo, previewMode]);
+  }, [applyCustomerInfo, previewMode, user?.plan, user?.subscriptionStatus]);
 
   const loadOfferings = useCallback(async () => {
     if (!configured) return;
@@ -91,6 +93,7 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
     let active = true;
     if (!user) {
       setLoading(false);
+      setCheckedUserId(null);
       setHasAccess(false);
       setPreviewMode(false);
       setPackages([]);
@@ -98,6 +101,15 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
     }
     if (user.role === 'admin') {
       setLoading(false);
+      setCheckedUserId(user.id);
+      setHasAccess(true);
+      setPreviewMode(false);
+      setError('');
+      return undefined;
+    }
+    if (user.plan === 'lifetime' && user.subscriptionStatus === 'lifetime') {
+      setLoading(false);
+      setCheckedUserId(user.id);
       setHasAccess(true);
       setPreviewMode(false);
       setError('');
@@ -111,6 +123,7 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
       setHasAccess(developmentPreview);
       setError(developmentPreview ? '' : 'RevenueCat is not configured for this platform.');
       setLoading(false);
+      setCheckedUserId(user.id);
       return undefined;
     }
 
@@ -120,6 +133,8 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
 
     void (async () => {
       setLoading(true);
+      setPackages([]);
+      setHasAccess(false);
       try {
         if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
         if (!configured) {
@@ -154,7 +169,10 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
           setError(value instanceof Error ? value.message : 'Subscription status could not be verified.');
         }
       } finally {
-        if (active) setLoading(false);
+        if (active) {
+          setCheckedUserId(user.id);
+          setLoading(false);
+        }
       }
     })();
 
@@ -162,7 +180,7 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
       active = false;
       if (configured) Purchases.removeCustomerInfoUpdateListener(customerInfoListener);
     };
-  }, [applyCustomerInfo, user?.id, user?.role]);
+  }, [applyCustomerInfo, user?.id, user?.role, user?.plan, user?.subscriptionStatus]);
 
   const purchase = useCallback(async (selectedPackage: PurchasesPackage) => {
     if (!configured) return previewMode;
@@ -197,8 +215,8 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
   }, [refresh]);
 
   const value = useMemo(() => ({
-    loading,
-    hasAccess,
+    loading: loading || Boolean(user && checkedUserId !== user.id),
+    hasAccess: Boolean(user && checkedUserId === user.id && hasAccess),
     previewMode,
     packages,
     offeringsLoading,
@@ -208,7 +226,7 @@ export function SubscriptionProvider({ children }: React.PropsWithChildren) {
     purchase,
     restore,
     manage,
-  }), [loading, hasAccess, previewMode, packages, offeringsLoading, error, refresh, loadOfferings, purchase, restore, manage]);
+  }), [loading, checkedUserId, user?.id, hasAccess, previewMode, packages, offeringsLoading, error, refresh, loadOfferings, purchase, restore, manage]);
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
 }
 

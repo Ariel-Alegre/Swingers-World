@@ -23,6 +23,7 @@
     },
     "android": {
       "package": "com.swingers.world",
+      "googleServicesFile": "./google-services.json",
       "versionCode": 1,
       "permissions": [
         "android.permission.INTERNET",

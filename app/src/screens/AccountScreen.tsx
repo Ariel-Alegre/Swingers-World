@@ -67,8 +67,11 @@ export function AccountScreen({ navigation }: { navigation: Navigation }) {
       <Pressable onPress={() => navigation.navigate('EditProfile')} style={styles.menuItem}>
         <Ionicons name="person-outline" size={22} color={colors.gold} /><Text style={styles.menuText}>{t('account.editProfile')}</Text><Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
       </Pressable>
+      <Pressable onPress={() => navigation.navigate('Legal', { document: 'terms' })} style={[styles.menuItem, styles.nextItem]}>
+        <Ionicons name="document-text-outline" size={22} color={colors.gold} /><Text style={styles.menuText}>{t('legal.terms.title')}</Text><Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+      </Pressable>
       <Pressable onPress={() => navigation.navigate('Legal', { document: 'privacy' })} style={[styles.menuItem, styles.nextItem]}>
-        <Ionicons name="document-text-outline" size={22} color={colors.gold} /><Text style={styles.menuText}>{t('account.privacyTerms')}</Text><Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+        <Ionicons name="shield-checkmark-outline" size={22} color={colors.gold} /><Text style={styles.menuText}>{t('legal.privacy.title')}</Text><Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
       </Pressable>
       <Pressable onPress={() => void manage()} style={[styles.menuItem, styles.nextItem]}>
         <Ionicons name="card-outline" size={22} color={colors.gold} /><Text style={styles.menuText}>{t('subscription.manage')}</Text><Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
