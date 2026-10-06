@@ -32,6 +32,7 @@ const copy = {
     privacyTitle: "Tu espacio, tus decisiones.",
     privacyLead: "Podés revisar cómo tratamos tus datos, gestionar tus interacciones y solicitar la eliminación de tu cuenta. La app está destinada exclusivamente a adultos.",
     privacyLink: "Política de privacidad",
+    childSafetyLink: "Seguridad infantil",
     deleteLink: "Eliminar mi cuenta",
     closeTitle: "Una comunidad para conectar a tu manera.",
     closeLead: "¿Tenés una consulta sobre Swingers World? Escribinos.",
@@ -66,6 +67,7 @@ const copy = {
     privacyTitle: "Your space, your decisions.",
     privacyLead: "You can review how we handle your data, manage your interactions, and request account deletion. The app is intended for adults only.",
     privacyLink: "Privacy policy",
+    childSafetyLink: "Child safety",
     deleteLink: "Delete my account",
     closeTitle: "A community to connect your way.",
     closeLead: "Have a question about Swingers World? Write to us.",
@@ -78,6 +80,7 @@ export function LandingPage({ locale }: { locale: Locale }) {
   const t = copy[locale];
   const anchors = locale === "es" ? ["experiencia", "como-funciona", "privacidad"] : ["experience", "how-it-works", "privacy"];
   const privacyUrl = locale === "es" ? "/privacy" : "/privacy/en";
+  const childSafetyUrl = locale === "es" ? "/child-safety" : "/child-safety/en";
   const deleteUrl = locale === "es" ? "/delete-account" : "/delete-account/en";
   const mail = "mailto:swingersworldinfo@gmail.com";
 
@@ -126,12 +129,12 @@ export function LandingPage({ locale }: { locale: Locale }) {
         </section>
 
         <section className="landing-section landing-privacy" id={anchors[2]}>
-          <div className="landing-privacy-panel"><span className="landing-privacy-star" aria-hidden="true">✳</span><div><p className="landing-eyebrow">{t.privacyEyebrow}</p><h2>{t.privacyTitle}</h2><p>{t.privacyLead}</p><div className="landing-privacy-links"><Link href={privacyUrl}>{t.privacyLink} ↗</Link><Link href={deleteUrl}>{t.deleteLink} ↗</Link></div></div></div>
+          <div className="landing-privacy-panel"><span className="landing-privacy-star" aria-hidden="true">✳</span><div><p className="landing-eyebrow">{t.privacyEyebrow}</p><h2>{t.privacyTitle}</h2><p>{t.privacyLead}</p><div className="landing-privacy-links"><Link href={privacyUrl}>{t.privacyLink} ↗</Link><Link href={childSafetyUrl}>{t.childSafetyLink} ↗</Link><Link href={deleteUrl}>{t.deleteLink} ↗</Link></div></div></div>
         </section>
 
         <section className="landing-closing"><p className="landing-eyebrow">SWINGERS WORLD</p><h2>{t.closeTitle}</h2><p>{t.closeLead}</p><a className="landing-button landing-button-primary" href={mail}>{t.email}<span aria-hidden="true">↗</span></a></section>
       </main>
-      <footer className="landing-footer"><div><div><span className="landing-footer-brand">Swingers <em>World</em></span><p>{t.adult}</p></div><nav aria-label={locale === "es" ? "Enlaces legales" : "Legal links"}><Link href={privacyUrl}>{t.privacyLink}</Link><Link href={deleteUrl}>{t.deleteLink}</Link><a href={mail}>{t.contact}</a></nav><small>© {new Date().getFullYear()} Swingers World</small></div></footer>
+      <footer className="landing-footer"><div><div><span className="landing-footer-brand">Swingers <em>World</em></span><p>{t.adult}</p></div><nav aria-label={locale === "es" ? "Enlaces legales" : "Legal links"}><Link href={privacyUrl}>{t.privacyLink}</Link><Link href={childSafetyUrl}>{t.childSafetyLink}</Link><Link href={deleteUrl}>{t.deleteLink}</Link><a href={mail}>{t.contact}</a></nav><small>© {new Date().getFullYear()} Swingers World</small></div></footer>
     </div>
   );
 }

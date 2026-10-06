@@ -1,0 +1,41 @@
+# EAS uploads from the Git repository root, with the mobile project in app/.
+# Keep native source in the archive, but regenerate all machine-specific build output.
+app/node_modules/
+app/.expo/
+app/dist/
+app/dist-check/
+app/dist-check-native/
+app/dist-sdk57-android/
+app/dist-sdk57-web/
+app/dist-sdk57-ios/
+app/dist-sdk57-bilingual/
+app/web-build/
+app/android/build/
+app/android/app/build/
+app/android/.gradle/
+app/android/.kotlin/
+app/android/.cxx/
+app/android/app/.cxx/
+app/android/local.properties
+app/android/.idea/
+app/android/app/src/main/java/inline/
+
+# Local credentials, logs, and editor files.
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.jsbundle
+*.iml
+*.hprof
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.pem
+.env
+.env*.local
+*.tsbuildinfo

@@ -30,6 +30,9 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
+      "blockedPermissions": [
+        "android.permission.READ_MEDIA_IMAGES"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/swingers-world.png",
         "backgroundColor": "#0B0710"

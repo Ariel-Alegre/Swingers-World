@@ -291,11 +291,6 @@ export function ChatDetailScreen({ route, navigation }: Props) {
   const chooseImage = async () => {
     if (!requireCompleteProfile() || sending || recorderState.isRecording) return;
     try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert(t('chat.chooseImage'), t('chat.photoPermissionMessage'));
-        return;
-      }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         quality: 0.82,

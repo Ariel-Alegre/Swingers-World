@@ -1,0 +1,20 @@
+App name (14/30)
+Swingers World
+
+Short description (69/80)
+Meet adults and couples, explore profiles, and chat at your own pace.
+
+Full description (850/4000)
+Swingers World is a community for adults 18 and older who want to discover people and couples, explore profiles, and connect at their own pace.
+
+Create a profile that reflects who you are and what you're looking for. Browse community profiles, learn about interests, and choose who you'd like to approach. Start one-on-one conversations and share messages, photos, or voice notes when you choose.
+
+Your profile, your rules. Decide whether your profile appears in Discover and whether your photos are public. If your photos are private, others can request access and you choose whether to approve it. You can update your approximate location, block users, and report inappropriate behavior.
+
+Explore at your own pace, share only what you feel comfortable sharing, and connect with respect.
+
+Swingers World is intended only for adults aged 18 or older.
+
+Localized assets
+Feature graphic: play-store/assets/swingers-world-feature-en-1024x500.png
+Phone screenshots: play-store/ready/screenshots/en-US/01-discover.png through 04-profile.png
